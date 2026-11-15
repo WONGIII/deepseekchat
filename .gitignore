@@ -1,0 +1,31 @@
+# Dependencies and build output
+chat/node_modules/
+chat/dist/
+chat/logs/
+chat/.wcode/
+.pnpm-store/
+.cache/
+
+# Python
+cosyvoice3/.venv/
+**/__pycache__/
+*.py[cod]
+
+# Model weights (download them locally)
+cosyvoice3/repo/pretrained_models/
+
+# Private reference voice audio
+cosyvoice3/voices/*.wav
+
+# Generated audio and request fixtures
+cosyvoice3/*.wav
+cosyvoice3/*.pcm
+cosyvoice3/tts_*.json
+
+# Logs and local environment
+*.log
+.env
+.env.*
+!.env.example
+tmp/
+.DS_Store

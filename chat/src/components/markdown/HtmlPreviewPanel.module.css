@@ -1,0 +1,68 @@
+.panel {
+  --preview-panel-width: min(48vw, 900px);
+
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  width: 0;
+  height: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-left: 1px solid transparent;
+  background: var(--dsw-alias-bg-base);
+  opacity: 0;
+  transition:
+    width 320ms var(--ds-ease-out-soft),
+    opacity 240ms var(--ds-ease-out-soft),
+    border-color 320ms var(--ds-ease-out-soft);
+}
+
+.panelOpen {
+  width: var(--preview-panel-width);
+  border-left-color: var(--dsw-alias-border-l2);
+  opacity: 1;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  gap: 8px;
+  height: 56px;
+  padding: 0 12px 0 18px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+}
+
+.frame {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: #fff;
+}
+
+@media not all and (min-width: 768px) {
+  .panel {
+    --preview-panel-width: 100vw;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel {
+    transition: none;
+  }
+}
