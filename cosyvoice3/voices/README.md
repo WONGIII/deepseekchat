@@ -1,11 +1,9 @@
 # Voice reference
 
-Place an optional local reference clip here as `stella.wav`:
+This private repository includes the current `stella.wav` reference clip:
 
 - mono
-- at least 16 kHz; 44.1 kHz preferred
+- 44.1 kHz source, trimmed to about 10 seconds
 - clean, without long silence or background music
 
-If `stella.wav` is absent, the adapter falls back to the official `repo/asset/zero_shot_prompt.wav` and its official transcript.
-
-Private voice audio is intentionally excluded from git via the root `.gitignore`.
+Other voice clips and backups are ignored by the root `.gitignore`. If `stella.wav` is absent, the adapter falls back to the official `repo/asset/zero_shot_prompt.wav` and its official transcript.

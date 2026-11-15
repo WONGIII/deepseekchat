@@ -17,6 +17,7 @@ cosyvoice3/    CosyVoice3 TTS + Whisper ASR adapter and vendored CosyVoice sourc
 - Japanese katakana conversion and mixed Chinese/Japanese sentence routing
 - Dynamic emotion mode, per-sentence pauses and smoother streaming UI
 - Local Whisper ASR for voice input
+- Current custom `stella` reference voice (`cosyvoice3/voices/stella.wav`)
 - Windows one-click launcher
 
 ## What is NOT included
@@ -24,7 +25,7 @@ cosyvoice3/    CosyVoice3 TTS + Whisper ASR adapter and vendored CosyVoice sourc
 - CosyVoice3 model weights (about 5 GB)
 - Whisper model weights (download on first ASR use)
 - Python virtual environments
-- Any private reference voice recordings
+- Other/backup reference voice recordings
 - API keys or local browser data
 
 The repository contains download/setup scripts and instructions instead.
@@ -81,7 +82,7 @@ This starts the chat dev server and the speech adapter, waits for both, and open
 
 API keys and settings are stored in the browser's `localStorage`. Conversations and attachments are stored in IndexedDB. Nothing is uploaded to GitHub from those stores.
 
-Do not commit `.env` files, API keys, private voice references or model weights.
+Do not commit `.env` files, API keys, additional private voice references or model weights.
 
 ## Upstream
 

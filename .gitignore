@@ -14,8 +14,9 @@ cosyvoice3/.venv/
 # Model weights (download them locally)
 cosyvoice3/repo/pretrained_models/
 
-# Private reference voice audio
+# Reference voice audio: only the current stella clip is tracked
 cosyvoice3/voices/*.wav
+!cosyvoice3/voices/stella.wav
 
 # Generated audio and request fixtures
 cosyvoice3/*.wav
