@@ -53,6 +53,11 @@
   margin-left: 4px;
 }
 
+/* 菜单打开期间即使鼠标离开会话行，也保持触发器可见，避免锚点尺寸变成 0 */
+.action.actionOpen {
+  display: flex;
+}
+
 .renameInput {
   box-sizing: border-box;
   width: 100%;
