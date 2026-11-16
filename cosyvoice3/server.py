@@ -8,6 +8,7 @@ import threading
 
 import num2words
 import onnxruntime
+import requests
 import torch
 import torchaudio
 import whisper
@@ -85,6 +86,9 @@ stella_spk_id = ""
 male_spk_id = ""
 # 默认开启模型流式输出：首句延迟更低；可用 --no-stream 切到质量优先模式
 STREAMING = True
+# TTS 引擎：cosyvoice 本地加载；m5 转发到独立 M5-TTS ONNX 服务
+TTS_ENGINE = "cosyvoice"
+M5_URL = "http://127.0.0.1:8001"
 asr_model = None
 asr_lock = threading.Lock()
 ASR_MODEL_NAME = ""
@@ -581,8 +585,31 @@ def generate_pcm(text, voice_id, filter_markdown, stream, emotion, language="aut
             yield silence_pcm(sentence_pause_ms(raw, lang, next_lang))
 
 
+def proxy_m5(body):
+    """把 /tts 请求原样转给 M5-TTS 服务，并逐块转发 PCM。"""
+    with requests.post(
+        f"{M5_URL}/tts", json=body, stream=True, timeout=300
+    ) as response:
+        response.raise_for_status()
+        for chunk in response.iter_content(4096):
+            if chunk:
+                yield chunk
+
+
 @app.get("/health")
 def health():
+    if TTS_ENGINE == "m5":
+        return {
+            "status": "ok",
+            "model": "M5-TTS-50M-ONNX",
+            "sample_rate": TARGET_SAMPLE_RATE,
+            "voices": VOICE_IDS,
+            "emotions": EMOTION_IDS,
+            "asr": ASR_MODEL_NAME or None,
+            "languages": ("zh", "en", "ja", "ko"),
+            "tts_engine": "m5",
+            "m5_url": M5_URL,
+        }
     return {
         "status": "ok",
         "model": os.path.basename(MODEL_DIR),
@@ -640,6 +667,15 @@ async def tts(request: Request):
     if voice not in VOICE_IDS:
         voice = "stella"
     filter_markdown = bool(body.get("filter_markdown", True))
+    if TTS_ENGINE == "m5":
+        body["voice_id"] = voice
+        body["filter_markdown"] = filter_markdown
+        body["stream"] = True
+        return StreamingResponse(
+            proxy_m5(body),
+            media_type="audio/pcm",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
     stream = bool(body.get("stream", STREAMING))
     emotion = str(body.get("emotion") or "auto")
     if emotion not in EMOTION_IDS:
@@ -657,7 +693,7 @@ async def tts(request: Request):
 
 def main():
     global cosyvoice, sample_rate, stella_spk_id, male_spk_id, MODEL_DIR, STREAMING
-    global asr_model, ASR_MODEL_NAME
+    global asr_model, ASR_MODEL_NAME, TTS_ENGINE, M5_URL
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
@@ -669,32 +705,50 @@ def main():
     parser.add_argument(
         "--no-stream", action="store_false", dest="stream", help="关闭模型流式输出（质量优先，首句延迟更高）"
     )
+    parser.add_argument(
+        "--tts-engine",
+        choices=("cosyvoice", "m5"),
+        default="cosyvoice",
+        help="TTS 引擎：cosyvoice（默认）或 m5",
+    )
+    parser.add_argument("--m5-url", default="http://127.0.0.1:8001")
     parser.add_argument("--asr-model", default="small", help="Whisper 模型：tiny/base/small/medium")
     parser.add_argument("--no-asr", action="store_true", help="不加载 Whisper 识别模型")
     parser.set_defaults(stream=True)
     args = parser.parse_args()
     STREAMING = bool(args.stream)
+    TTS_ENGINE = args.tts_engine
+    M5_URL = args.m5_url.rstrip("/")
     MODEL_DIR = args.model_dir
-    log.info("loading CosyVoice model %s (fp16=%s, streaming=%s)", MODEL_DIR, args.fp16, STREAMING)
-    cosyvoice = AutoModel(model_dir=MODEL_DIR, fp16=bool(args.fp16))
-    sample_rate = cosyvoice.sample_rate
-    log.info("CosyVoice model loaded, sample_rate=%s", sample_rate)
-    log.info("stella prompt wav: %s", STELLA_PROMPT_WAV)
-    try:
-        cosyvoice.add_zero_shot_spk(STELLA_PROMPT_TEXT, STELLA_PROMPT_WAV, "stella")
-        stella_spk_id = "stella"
-    except Exception:
-        log.exception("stella speaker cache failed, fallback to prompt wav each request")
-        stella_spk_id = ""
-    try:
-        cosyvoice.add_zero_shot_spk("", MALE_PROMPT_WAV, "tide")
-        male_spk_id = "tide"
-    except Exception:
-        log.exception("male zero-shot speaker cache failed, fallback to prompt wav each request")
-        male_spk_id = ""
-    log.info("prompt voices cached")
-    cache_emotion_speakers()
-    log.info("emotion speakers cached")
+    if TTS_ENGINE == "cosyvoice":
+        log.info(
+            "loading CosyVoice model %s (fp16=%s, streaming=%s)",
+            MODEL_DIR,
+            args.fp16,
+            STREAMING,
+        )
+        cosyvoice = AutoModel(model_dir=MODEL_DIR, fp16=bool(args.fp16))
+        sample_rate = cosyvoice.sample_rate
+        log.info("CosyVoice model loaded, sample_rate=%s", sample_rate)
+        log.info("stella prompt wav: %s", STELLA_PROMPT_WAV)
+        try:
+            cosyvoice.add_zero_shot_spk(STELLA_PROMPT_TEXT, STELLA_PROMPT_WAV, "stella")
+            stella_spk_id = "stella"
+        except Exception:
+            log.exception("stella speaker cache failed, fallback to prompt wav each request")
+            stella_spk_id = ""
+        try:
+            cosyvoice.add_zero_shot_spk("", MALE_PROMPT_WAV, "tide")
+            male_spk_id = "tide"
+        except Exception:
+            log.exception("male zero-shot speaker cache failed, fallback to prompt wav each request")
+            male_spk_id = ""
+        log.info("prompt voices cached")
+        cache_emotion_speakers()
+        log.info("emotion speakers cached")
+    else:
+        sample_rate = TARGET_SAMPLE_RATE
+        log.info("TTS engine: M5-TTS at %s (CosyVoice not loaded)", M5_URL)
     if args.no_asr:
         log.info("ASR disabled")
     else:

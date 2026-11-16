@@ -5,6 +5,7 @@ Private repository containing a customized DeepSeek chat frontend and a local sp
 ```text
 chat/          React + TypeScript chat frontend
 cosyvoice3/    CosyVoice3 TTS + Whisper ASR adapter and vendored CosyVoice source
+m5-tts/        M5-TTS ONNX trial engine and adapter
 ```
 
 ## What is included
@@ -17,12 +18,14 @@ cosyvoice3/    CosyVoice3 TTS + Whisper ASR adapter and vendored CosyVoice sourc
 - Japanese katakana conversion and mixed Chinese/Japanese sentence routing
 - Dynamic emotion mode, per-sentence pauses and smoother streaming UI
 - Local Whisper ASR for voice input
+- M5-TTS 50M ONNX trial engine (CUDA/CPU) with voice cloning
 - Current custom `stella` reference voice (`cosyvoice3/voices/stella.wav`)
-- Windows one-click launcher
+- Windows one-click launchers for both engines
 
 ## What is NOT included
 
 - CosyVoice3 model weights (about 5 GB)
+- M5-TTS ONNX model weights (about 1.5 GB)
 - Whisper model weights (download on first ASR use)
 - Python virtual environments
 - Other/backup reference voice recordings
@@ -63,7 +66,27 @@ python download_model.py
 
 See [`cosyvoice3/README.md`](cosyvoice3/README.md) for model downloads, optional RL weights and voice configuration.
 
-### 3. One-click Windows launch
+### 3. M5-TTS trial (optional)
+
+M5-TTS runs as a separate ONNX service and proxies through the same adapter:
+
+```bat
+cd m5-tts
+uv venv .venv --python 3.10
+uv pip install --python .venv\Scripts\python.exe -r requirements-onnx.txt
+.venv\Scripts\python.exe m5_server.py --host 127.0.0.1 --port 8001 --device cuda
+```
+
+Then start the adapter in M5 mode:
+
+```bat
+cd ..\cosyvoice3
+.venv\Scripts\python.exe server.py --host 127.0.0.1 --port 8000 --tts-engine m5 --m5-url http://127.0.0.1:8001
+```
+
+See [`m5-tts/README.md`](m5-tts/README.md) for GPU DLL notes, voice mapping and limitations.
+
+### 4. One-click Windows launch
 
 After both environments have been installed once:
 
@@ -71,12 +94,19 @@ After both environments have been installed once:
 chat\start-all.bat
 ```
 
-This starts the chat dev server and the speech adapter, waits for both, and opens the app. Close its console to stop everything.
+CosyVoice + Whisper is the default. For the M5 trial:
+
+```bat
+chat\start-all-m5.bat
+```
+
+Both launchers start the chat dev server and the speech adapter, wait for readiness, and open the app. Close the console to stop everything.
 
 ## Default ports
 
 - `8090` — chat dev server
-- `8000` — CosyVoice3 TTS + Whisper ASR adapter
+- `8000` — speech adapter (CosyVoice/Whisper by default, or M5 proxy)
+- `8001` — M5-TTS ONNX service when the M5 trial launcher is used
 
 ## Security
 
@@ -86,4 +116,4 @@ Do not commit `.env` files, API keys, additional private voice references or mod
 
 ## Upstream
 
-The frontend is based on [`deepseek-ai/chat-demo`](https://github.com/deepseek-ai/chat-demo). CosyVoice source is vendored from [`FunAudioLLM/CosyVoice`](https://github.com/FunAudioLLM/CosyVoice); model weights remain on Hugging Face/ModelScope and are downloaded separately.
+The frontend is based on [`deepseek-ai/chat-demo`](https://github.com/deepseek-ai/chat-demo). CosyVoice source is vendored from [`FunAudioLLM/CosyVoice`](https://github.com/FunAudioLLM/CosyVoice) and M5-TTS source from [`ASLP-lab/M5-TTS`](https://github.com/ASLP-lab/M5-TTS); model weights remain on Hugging Face/ModelScope and are downloaded separately.

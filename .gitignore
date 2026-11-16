@@ -8,6 +8,7 @@ chat/.wcode/
 
 # Python
 cosyvoice3/.venv/
+m5-tts/.venv/
 **/__pycache__/
 *.py[cod]
 
@@ -22,6 +23,9 @@ cosyvoice3/voices/*.wav
 cosyvoice3/*.wav
 cosyvoice3/*.pcm
 cosyvoice3/tts_*.json
+m5-tts/*.wav
+m5-tts/*.pcm
+m5-tts/outputs/
 
 # Logs and local environment
 *.log

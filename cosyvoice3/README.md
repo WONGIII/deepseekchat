@@ -79,3 +79,20 @@ chat\start-all.bat
 ```
 
 It writes logs to `chat\logs\`.
+
+## M5-TTS mode
+
+The same adapter can forward TTS to the M5-TTS ONNX service while keeping Whisper ASR:
+
+```bat
+.venv\Scripts\python.exe server.py --host 127.0.0.1 --port 8000 --tts-engine m5 --m5-url http://127.0.0.1:8001
+```
+
+Or run the M5 trial stack:
+
+```bat
+chat\start-all-m5.bat
+```
+
+M5 setup and its trade-offs are documented in `m5-tts/README.md`. CosyVoice remains the
+default engine and the launcher `chat\start-all.bat` restores it.
