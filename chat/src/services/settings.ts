@@ -65,6 +65,8 @@ const KEYS = {
   speechBaseUrl: 'chat-demo:speech-base-url',
   model: 'chat-demo:model',
   models: 'chat-demo:models',
+  /** 本机网络设置所属的账号，用于避免把上一个账号的 Key 迁移给另一个账号 */
+  networkOwner: 'chat-demo:network-owner',
 } as const
 
 const read = (key: string) => {
@@ -386,6 +388,7 @@ export const clearNetworkSettings = () => {
     searchApiKey: null,
     speechApiKey: null,
   })
+  write(KEYS.networkOwner, null)
 }
 
 let networkSaveTimer = 0
@@ -417,10 +420,17 @@ const scheduleNetworkSave = () => {
 }
 
 /**
- * 登录后加载服务器上的网络设置。服务器没有记录时，把本机已有设置作为首次迁移上传；
- * 本机也没有设置则清空，避免下一个账号看到上一个账号的 Key。
+ * 登录后加载服务器上的网络设置。服务器没有记录时，把本机已有设置作为首次迁移上传：
+ * 只允许没有归属（旧版本留下的）或归属同一账号的本机设置迁移，避免会话过期后
+ * 在同一个浏览器登录另一个账号时继承上一个账号的 Key。
  */
-export const loadRemoteNetworkSettings = async (): Promise<void> => {
+export const loadRemoteNetworkSettings = async (currentUsername: string): Promise<void> => {
+  const owner = read(KEYS.networkOwner)
+  // 登录的账号与上次使用本机网络设置的账号不同时，先清空再请求服务器；
+  // 即使请求失败，也不会让新账号看到上一个账号的 Key。
+  if (owner !== null && owner !== currentUsername) {
+    clearNetworkSettings()
+  }
   try {
     const response = await fetch('/api/settings/network', { credentials: 'same-origin' })
     if (!response.ok) {
@@ -429,6 +439,7 @@ export const loadRemoteNetworkSettings = async (): Promise<void> => {
     const body = (await response.json()) as { settings: NetworkSettings | null }
     if (body.settings) {
       applyNetworkSettings(body.settings)
+      write(KEYS.networkOwner, currentUsername)
       return
     }
     const local = readNetworkSettings()
@@ -437,6 +448,7 @@ export const loadRemoteNetworkSettings = async (): Promise<void> => {
     } else {
       clearNetworkSettings()
     }
+    write(KEYS.networkOwner, currentUsername)
   } catch {
     // 离线或服务暂不可用时保留本机设置
   }

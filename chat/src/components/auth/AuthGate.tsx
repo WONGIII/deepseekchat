@@ -10,6 +10,7 @@ export const AuthGate = ({ children }: { children: ReactNode }) => {
   const t = useTranslate()
   const status = useAuth((state) => state.status)
   const error = useAuth((state) => state.error)
+  const sessionUsername = useAuth((state) => state.user?.username)
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -22,12 +23,12 @@ export const AuthGate = ({ children }: { children: ReactNode }) => {
   }, [])
 
   useEffect(() => {
-    if (status !== 'authenticated') {
+    if (status !== 'authenticated' || !sessionUsername) {
       setSettingsReady(false)
       return
     }
     let cancelled = false
-    void loadRemoteNetworkSettings().finally(() => {
+    void loadRemoteNetworkSettings(sessionUsername).finally(() => {
       if (!cancelled) {
         setSettingsReady(true)
       }
@@ -35,7 +36,7 @@ export const AuthGate = ({ children }: { children: ReactNode }) => {
     return () => {
       cancelled = true
     }
-  }, [status])
+  }, [status, sessionUsername])
 
   if (status === 'authenticated') {
     return settingsReady ? (
