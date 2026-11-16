@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { clearNetworkSettings } from './settings.js'
 
 export type AuthUser = {
   username: string
@@ -70,6 +71,7 @@ export const register = (username: string, password: string) =>
   submit('register', username, password)
 
 export const logout = async () => {
+  clearNetworkSettings()
   await fetch('/api/auth/logout', { ...credentials, method: 'POST' }).catch(() => {})
   useAuth.setState({ status: 'anonymous', user: null, error: null })
 }

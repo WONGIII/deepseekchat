@@ -37,6 +37,17 @@ type Settings = {
   models: string[]
 }
 
+/** 按账号保存在服务器上的网络设置 */
+export type NetworkSettings = Pick<
+  Settings,
+  | 'llmBaseUrl'
+  | 'searchBaseUrl'
+  | 'speechBaseUrl'
+  | 'llmApiKey'
+  | 'searchApiKey'
+  | 'speechApiKey'
+>
+
 const KEYS = {
   llmApiKey: 'chat-demo:api-key',
   searchApiKey: 'chat-demo:search-api-key',
@@ -241,16 +252,19 @@ const saveApiKey = (key: string, value: string | null): string | null => {
 export const setLlmApiKey = (value: string | null) => {
   const llmApiKey = saveApiKey(KEYS.llmApiKey, value)
   useSettings.setState({ llmApiKey })
+  scheduleNetworkSave()
 }
 
 export const setSearchApiKey = (value: string | null) => {
   const searchApiKey = saveApiKey(KEYS.searchApiKey, value)
   useSettings.setState({ searchApiKey })
+  scheduleNetworkSave()
 }
 
 export const setSpeechApiKey = (value: string | null) => {
   const speechApiKey = saveApiKey(KEYS.speechApiKey, value)
   useSettings.setState({ speechApiKey })
+  scheduleNetworkSave()
 }
 
 /** 请求时读取的 Key：搜索/语音为空时沿用 LLM Key */
@@ -307,16 +321,123 @@ export const setLlmBaseUrl = (llmBaseUrl: string | null) => {
   const value = normalizeBaseUrl(llmBaseUrl)
   write(KEYS.llmBaseUrl, value)
   useSettings.setState({ llmBaseUrl: value })
+  scheduleNetworkSave()
 }
 
 export const setSearchBaseUrl = (searchBaseUrl: string | null) => {
   const value = normalizeBaseUrl(searchBaseUrl)
   write(KEYS.searchBaseUrl, value)
   useSettings.setState({ searchBaseUrl: value })
+  scheduleNetworkSave()
 }
 
 export const setSpeechBaseUrl = (speechBaseUrl: string | null) => {
   const value = normalizeBaseUrl(speechBaseUrl)
   write(KEYS.speechBaseUrl, value)
   useSettings.setState({ speechBaseUrl: value })
+  scheduleNetworkSave()
+}
+
+const readNetworkSettings = (): NetworkSettings => {
+  const state = useSettings.getState()
+  return {
+    llmBaseUrl: state.llmBaseUrl,
+    searchBaseUrl: state.searchBaseUrl,
+    speechBaseUrl: state.speechBaseUrl,
+    llmApiKey: state.llmApiKey,
+    searchApiKey: state.searchApiKey,
+    speechApiKey: state.speechApiKey,
+  }
+}
+
+const hasNetworkValues = (settings: NetworkSettings) =>
+  Object.values(settings).some((value) => value !== null && value !== '')
+
+const applyNetworkSettings = (settings: NetworkSettings) => {
+  const llmApiKey = saveApiKey(KEYS.llmApiKey, settings.llmApiKey)
+  const searchApiKey = saveApiKey(KEYS.searchApiKey, settings.searchApiKey)
+  const speechApiKey = saveApiKey(KEYS.speechApiKey, settings.speechApiKey)
+  const llmBaseUrl = normalizeBaseUrl(settings.llmBaseUrl)
+  const searchBaseUrl = normalizeBaseUrl(settings.searchBaseUrl)
+  const speechBaseUrl = normalizeBaseUrl(settings.speechBaseUrl)
+  write(KEYS.llmBaseUrl, llmBaseUrl)
+  write(KEYS.searchBaseUrl, searchBaseUrl)
+  write(KEYS.speechBaseUrl, speechBaseUrl)
+  useSettings.setState({
+    llmApiKey,
+    searchApiKey,
+    speechApiKey,
+    llmBaseUrl,
+    searchBaseUrl,
+    speechBaseUrl,
+  })
+}
+
+export const clearNetworkSettings = () => {
+  if (networkSaveTimer !== 0) {
+    window.clearTimeout(networkSaveTimer)
+    networkSaveTimer = 0
+  }
+  applyNetworkSettings({
+    llmBaseUrl: null,
+    searchBaseUrl: null,
+    speechBaseUrl: null,
+    llmApiKey: null,
+    searchApiKey: null,
+    speechApiKey: null,
+  })
+}
+
+let networkSaveTimer = 0
+let networkSaveChain: Promise<void> = Promise.resolve()
+
+const saveNetworkSettings = (settings: NetworkSettings): Promise<void> => {
+  networkSaveChain = networkSaveChain.catch(() => undefined).then(async () => {
+    const response = await fetch('/api/settings/network', {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ settings }),
+    })
+    if (!response.ok) {
+      throw new Error(`保存网络设置失败：HTTP ${response.status}`)
+    }
+  })
+  return networkSaveChain
+}
+
+const scheduleNetworkSave = () => {
+  if (networkSaveTimer !== 0) {
+    window.clearTimeout(networkSaveTimer)
+  }
+  networkSaveTimer = window.setTimeout(() => {
+    networkSaveTimer = 0
+    void saveNetworkSettings(readNetworkSettings()).catch(() => undefined)
+  }, 300)
+}
+
+/**
+ * 登录后加载服务器上的网络设置。服务器没有记录时，把本机已有设置作为首次迁移上传；
+ * 本机也没有设置则清空，避免下一个账号看到上一个账号的 Key。
+ */
+export const loadRemoteNetworkSettings = async (): Promise<void> => {
+  try {
+    const response = await fetch('/api/settings/network', { credentials: 'same-origin' })
+    if (!response.ok) {
+      return
+    }
+    const body = (await response.json()) as { settings: NetworkSettings | null }
+    if (body.settings) {
+      applyNetworkSettings(body.settings)
+      return
+    }
+    const local = readNetworkSettings()
+    if (hasNetworkValues(local)) {
+      await saveNetworkSettings(local).catch(() => undefined)
+    } else {
+      clearNetworkSettings()
+    }
+  } catch {
+    // 离线或服务暂不可用时保留本机设置
+  }
 }

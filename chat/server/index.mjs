@@ -9,6 +9,8 @@ const DATA_DIR = process.env.DATA_DIR || path.join(ROOT, 'data')
 const USERS_FILE = path.join(DATA_DIR, 'users.json')
 const TOKENS_FILE = path.join(DATA_DIR, 'tokens.json')
 const SESSION_DIR = path.join(DATA_DIR, 'sessions')
+const SETTINGS_DIR = path.join(DATA_DIR, 'settings')
+const SETTINGS_KEY_FILE = path.join(DATA_DIR, 'settings.key')
 const DIST_DIR = path.resolve(ROOT, '..', 'dist')
 
 const HOST = process.env.HOST || '0.0.0.0'
@@ -19,6 +21,21 @@ const USERNAME_RE = /^[\p{L}\p{N}_-]{2,32}$/u
 
 await fs.mkdir(DATA_DIR, { recursive: true })
 await fs.mkdir(SESSION_DIR, { recursive: true })
+await fs.mkdir(SETTINGS_DIR, { recursive: true })
+
+const settingsKey = process.env.SETTINGS_SECRET
+  ? crypto.createHash('sha256').update(process.env.SETTINGS_SECRET).digest()
+  : await (async () => {
+      try {
+        const existing = Buffer.from((await fs.readFile(SETTINGS_KEY_FILE, 'utf8')).trim(), 'hex')
+        if (existing.length === 32) return existing
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error
+      }
+      const generated = crypto.randomBytes(32)
+      await fs.writeFile(SETTINGS_KEY_FILE, generated.toString('hex'), { mode: 0o600 })
+      return generated
+    })()
 
 const readJson = async (file, fallback) => {
   try {
@@ -162,6 +179,63 @@ const validateSession = (session, user) => {
   }
 }
 
+const settingsFile = (userId) => path.join(SETTINGS_DIR, `${userId}.json`)
+
+const encryptSettings = (payload) => {
+  const iv = crypto.randomBytes(12)
+  const cipher = crypto.createCipheriv('aes-256-gcm', settingsKey, iv)
+  const data = Buffer.concat([
+    cipher.update(JSON.stringify(payload), 'utf8'),
+    cipher.final(),
+  ])
+  return {
+    iv: iv.toString('hex'),
+    tag: cipher.getAuthTag().toString('hex'),
+    data: data.toString('base64'),
+  }
+}
+
+const decryptSettings = (record) => {
+  const decipher = crypto.createDecipheriv(
+    'aes-256-gcm',
+    settingsKey,
+    Buffer.from(record.iv, 'hex')
+  )
+  decipher.setAuthTag(Buffer.from(record.tag, 'hex'))
+  const plaintext = Buffer.concat([
+    decipher.update(Buffer.from(record.data, 'base64')),
+    decipher.final(),
+  ])
+  return JSON.parse(plaintext.toString('utf8'))
+}
+
+const NETWORK_FIELDS = [
+  'llmBaseUrl',
+  'searchBaseUrl',
+  'speechBaseUrl',
+  'llmApiKey',
+  'searchApiKey',
+  'speechApiKey',
+]
+
+const validateNetworkSettings = (raw) => {
+  if (!raw || typeof raw !== 'object') return null
+  const result = {}
+  for (const field of NETWORK_FIELDS) {
+    const value = raw[field]
+    if (value === null || value === undefined || value === '') {
+      result[field] = null
+      continue
+    }
+    if (typeof value !== 'string') return null
+    const limit = field.endsWith('Url') ? 2048 : 4096
+    if (value.length > limit) return null
+    result[field] = value
+  }
+  return result
+}
+
+
 const app = express()
 app.disable('x-powered-by')
 app.set('trust proxy', 1)
@@ -248,6 +322,37 @@ app.post('/api/auth/logout', async (req, res, next) => {
     }
     clearSessionCookie(req, res)
     res.json({ ok: true })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/settings/network', requireAuth, async (req, res, next) => {
+  try {
+    try {
+      const record = JSON.parse(await fs.readFile(settingsFile(req.user.id), 'utf8'))
+      res.json({ settings: decryptSettings(record) })
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        res.json({ settings: null })
+        return
+      }
+      throw error
+    }
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.put('/api/settings/network', requireAuth, async (req, res, next) => {
+  try {
+    const settings = validateNetworkSettings(req.body?.settings)
+    if (!settings) {
+      res.status(400).json({ error: '无效的网络设置' })
+      return
+    }
+    await writeJson(settingsFile(req.user.id), encryptSettings(settings))
+    res.json({ settings })
   } catch (error) {
     next(error)
   }

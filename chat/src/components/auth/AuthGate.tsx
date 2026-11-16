@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { useTranslate } from '../../i18n/index.js'
 import { Button } from '../base/Button.js'
 import { login, loadCurrentUser, register, useAuth } from '../../services/auth.js'
+import { loadRemoteNetworkSettings } from '../../services/settings.js'
 import styles from './AuthGate.module.css'
 
 /** 登录/注册外壳；认证成功后才挂载聊天应用，避免未登录时发起会话请求 */
@@ -14,13 +15,37 @@ export const AuthGate = ({ children }: { children: ReactNode }) => {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [settingsReady, setSettingsReady] = useState(false)
 
   useEffect(() => {
     void loadCurrentUser()
   }, [])
 
+  useEffect(() => {
+    if (status !== 'authenticated') {
+      setSettingsReady(false)
+      return
+    }
+    let cancelled = false
+    void loadRemoteNetworkSettings().finally(() => {
+      if (!cancelled) {
+        setSettingsReady(true)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [status])
+
   if (status === 'authenticated') {
-    return children
+    return settingsReady ? (
+      children
+    ) : (
+      <div className={styles.splash} role="status" aria-live="polite">
+        <span className={styles.spinner} />
+        {t('authLoading')}
+      </div>
+    )
   }
 
   if (status === 'loading') {

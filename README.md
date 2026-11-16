@@ -15,7 +15,7 @@ gpt-sovits/    GPT-SoVITS V5 Turbo trial engine (native 48 kHz)
 
 - Per-user registration/login; conversations are stored on the server, isolated by account
 - PWA manifest, icons and service worker for mobile install
-- Custom LLM / search / speech base URLs and API keys
+- Per-user LLM / search / speech base URLs and API keys, encrypted at rest on the server
 - Custom model selection, model fetching and manual model IDs
 - Standalone DeepSeek search integration and local title fallback
 - CosyVoice3 read-aloud with Chinese/Japanese/English/Korean/Russian
@@ -128,7 +128,8 @@ but Android/iOS will not install it as a PWA or enable offline mode.
 
 - Passwords are hashed with scrypt; login uses an HttpOnly, SameSite=Lax cookie.
 - Conversations are stored under `chat/server/data/sessions/<userId>/`; this directory is ignored by git.
-- Browser API keys and speech settings remain in localStorage per browser profile.
+- Network settings (base URLs and API keys) are stored per account on the server, encrypted with AES-256-GCM; the key comes from `SETTINGS_SECRET` or is generated into `chat/server/data/settings.key`.
+- UI preferences (locale, theme, voice, model selection) remain in localStorage per browser profile.
 - The local TTS/ASR services have no authentication; expose them only on trusted networks.
 
 ## Upstream
