@@ -1,5 +1,7 @@
 # Dependencies and build output
 chat/node_modules/
+chat/server/node_modules/
+chat/server/data/
 chat/dist/
 chat/logs/
 chat/.wcode/
@@ -9,11 +11,13 @@ chat/.wcode/
 # Python
 cosyvoice3/.venv/
 m5-tts/.venv/
+gpt-sovits/.venv/
 **/__pycache__/
 *.py[cod]
 
 # Model weights (download them locally)
 cosyvoice3/repo/pretrained_models/
+gpt-sovits/repo/GPT_SoVITS/pretrained_models/
 
 # Reference voice audio: only the current stella clip is tracked
 cosyvoice3/voices/*.wav
@@ -26,6 +30,9 @@ cosyvoice3/tts_*.json
 m5-tts/*.wav
 m5-tts/*.pcm
 m5-tts/outputs/
+gpt-sovits/*.wav
+gpt-sovits/*.pcm
+gpt-sovits/outputs/
 
 # Logs and local environment
 *.log

@@ -306,6 +306,7 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-TTS-Sample-Rate"],
 )
 
 
@@ -357,14 +358,18 @@ async def tts(request: Request):
     return StreamingResponse(
         generate_pcm(text, voice, filter_markdown, language_override),
         media_type="audio/pcm",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "X-TTS-Sample-Rate": str(TARGET_SAMPLE_RATE),
+        },
     )
 
 
 def main():
     global model, provider_name
     parser = argparse.ArgumentParser()
-    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8001)
     parser.add_argument("--threads", type=int, default=8)
     parser.add_argument("--device", choices=("cpu", "cuda"), default="cuda")

@@ -85,7 +85,7 @@ It writes logs to `chat\logs\`.
 The same adapter can forward TTS to the M5-TTS ONNX service while keeping Whisper ASR:
 
 ```bat
-.venv\Scripts\python.exe server.py --host 127.0.0.1 --port 8000 --tts-engine m5 --m5-url http://127.0.0.1:8001
+.venv\Scripts\python.exe server.py --host 0.0.0.0 --port 8000 --tts-engine m5 --m5-url http://127.0.0.1:8001
 ```
 
 Or run the M5 trial stack:
@@ -96,3 +96,21 @@ chat\start-all-m5.bat
 
 M5 setup and its trade-offs are documented in `m5-tts/README.md`. CosyVoice remains the
 default engine and the launcher `chat\start-all.bat` restores it.
+
+## GPT-SoVITS V5 Turbo mode
+
+The adapter can forward TTS to GPT-SoVITS on 8002 while keeping Whisper ASR:
+
+```bat
+.venv\Scripts\python.exe server.py --host 0.0.0.0 --port 8000 --tts-engine gsv --gsv-url http://127.0.0.1:8002
+```
+
+Or run the GPT-SoVITS stack:
+
+```bat
+chat\start-all-gsv.bat
+```
+
+GPT-SoVITS keeps its native 48kHz mono stream; the adapter returns
+`X-TTS-Sample-Rate: 48000` and the browser plays it without downsampling. CosyVoice and M5
+remain 24kHz. See `gpt-sovits/README.md`.

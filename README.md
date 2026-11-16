@@ -1,57 +1,72 @@
 # DeepSeek Chat Local Stack
 
-Private repository containing a customized DeepSeek chat frontend and a local speech stack:
+Private repository containing a customized DeepSeek chat application with accounts,
+server-side conversation storage, a PWA shell, and local speech services.
 
 ```text
-chat/          React + TypeScript chat frontend
+chat/          React + TypeScript frontend
+chat/server/   Node account/chat backend (JSON storage, HttpOnly cookie auth)
 cosyvoice3/    CosyVoice3 TTS + Whisper ASR adapter and vendored CosyVoice source
-m5-tts/        M5-TTS ONNX trial engine and adapter
+m5-tts/        M5-TTS 50M ONNX trial engine
+gpt-sovits/    GPT-SoVITS V5 Turbo trial engine (native 48 kHz)
 ```
 
-## What is included
+## Features
 
-- Custom network settings: separate LLM / search / speech base URLs and API keys
+- Per-user registration/login; conversations are stored on the server, isolated by account
+- PWA manifest, icons and service worker for mobile install
+- Custom LLM / search / speech base URLs and API keys
 - Custom model selection, model fetching and manual model IDs
 - Standalone DeepSeek search integration and local title fallback
-- Web search, attachments, history import/export
-- Local CosyVoice3 read-aloud with Chinese/Japanese/English/Korean/Russian
-- Japanese katakana conversion and mixed Chinese/Japanese sentence routing
-- Dynamic emotion mode, per-sentence pauses and smoother streaming UI
+- CosyVoice3 read-aloud with Chinese/Japanese/English/Korean/Russian
+- GPT-SoVITS V5 Turbo read-aloud with native 48 kHz output
+- M5-TTS 50M ONNX trial engine
 - Local Whisper ASR for voice input
-- M5-TTS 50M ONNX trial engine (CUDA/CPU) with voice cloning
-- Current custom `stella` reference voice (`cosyvoice3/voices/stella.wav`)
-- Windows one-click launchers for both engines
+- Streaming text, thinking-chain animation, HTML preview and responsive mobile UI
+- All services bind to `0.0.0.0` by default
 
-## What is NOT included
+## Not included
 
-- CosyVoice3 model weights (about 5 GB)
-- M5-TTS ONNX model weights (about 1.5 GB)
-- Whisper model weights (download on first ASR use)
-- Python virtual environments
-- Other/backup reference voice recordings
-- API keys or local browser data
+- CosyVoice3 model weights (~5 GB)
+- GPT-SoVITS V5 Turbo model weights (~1.7 GB)
+- M5-TTS ONNX model weights (~1.5 GB)
+- Whisper model weights (downloaded on first ASR use)
+- Python/Node virtual environments
+- Server user data (`chat/server/data`)
+- Private API keys or extra voice recordings
 
-The repository contains download/setup scripts and instructions instead.
+Model download/setup instructions live in the service READMEs.
 
 ## Quick start
 
-### 1. Chat frontend
+### 1. Frontend + account backend
 
 Requires Node.js and pnpm.
 
 ```bat
 cd chat
 pnpm install
-pnpm dev
+cd server
+npm install
+cd ..
+pnpm build
 ```
 
-Open `http://localhost:8090/`.
+Start the backend (serves the built frontend and `/api` on port 8098):
 
-Configure Settings → Network with your LLM/search/speech endpoints and keys.
+```bat
+cd server
+set HOST=0.0.0.0
+set PORT=8098
+node index.mjs
+```
 
-### 2. Speech service
+Open `http://localhost:8098/` and register an account.
 
-Requires Python 3.10 and optionally CUDA.
+For frontend development instead, run `start-chat.bat` (port 8090) while the backend is
+running; `/api` is proxied to 8098.
+
+### 2. CosyVoice + Whisper speech service
 
 ```bat
 cd cosyvoice3
@@ -61,59 +76,64 @@ uv pip install --python .venv\Scripts\python.exe "setuptools<81"
 uv pip install --python .venv\Scripts\python.exe -r requirements-tts.txt
 uv pip install --python .venv\Scripts\python.exe openai-whisper==20231117 --no-deps --no-build-isolation
 python download_model.py
-.venv\Scripts\python.exe server.py --host 127.0.0.1 --port 8000
 ```
 
-See [`cosyvoice3/README.md`](cosyvoice3/README.md) for model downloads, optional RL weights and voice configuration.
+See [`cosyvoice3/README.md`](cosyvoice3/README.md) for RL weights and voice setup.
 
-### 3. M5-TTS trial (optional)
+### 3. Optional engines
 
-M5-TTS runs as a separate ONNX service and proxies through the same adapter:
+- GPT-SoVITS V5 Turbo: [`gpt-sovits/README.md`](gpt-sovits/README.md)
+- M5-TTS: [`m5-tts/README.md`](m5-tts/README.md)
+
+Both expose the same adapter protocol and keep Whisper ASR on port 8000.
+
+### 4. One-click Windows scripts
+
+Full stacks build the frontend, start the account backend, speech adapter and selected
+engine, then open `http://localhost:8098/`:
 
 ```bat
-cd m5-tts
-uv venv .venv --python 3.10
-uv pip install --python .venv\Scripts\python.exe -r requirements-onnx.txt
-.venv\Scripts\python.exe m5_server.py --host 127.0.0.1 --port 8001 --device cuda
+chat\start-all.bat        :: CosyVoice + Whisper
+chat\start-all-gsv.bat    :: GPT-SoVITS V5 Turbo + Whisper
+chat\start-all-m5.bat     :: M5-TTS + Whisper
 ```
 
-Then start the adapter in M5 mode:
+Individual services:
 
 ```bat
-cd ..\cosyvoice3
-.venv\Scripts\python.exe server.py --host 127.0.0.1 --port 8000 --tts-engine m5 --m5-url http://127.0.0.1:8001
+chat\start-backend.bat    :: build + account/chat backend 8098
+chat\start-chat.bat       :: frontend dev server 8090
+chat\start-tts.bat        :: CosyVoice + Whisper 8000
+chat\start-gsv.bat        :: GPT-SoVITS 8002
+chat\start-m5.bat         :: M5-TTS 8001
+chat\stop-all.bat         :: stop all local services
 ```
 
-See [`m5-tts/README.md`](m5-tts/README.md) for GPU DLL notes, voice mapping and limitations.
+## Ports
 
-### 4. One-click Windows launch
+- `8098` — account/chat backend + production frontend/PWA
+- `8090` — frontend dev server
+- `8000` — speech adapter (TTS proxy + Whisper ASR)
+- `8001` — M5-TTS (optional)
+- `8002` — GPT-SoVITS (optional)
 
-After both environments have been installed once:
+## PWA / phone
 
-```bat
-chat\start-all.bat
-```
-
-CosyVoice + Whisper is the default. For the M5 trial:
-
-```bat
-chat\start-all-m5.bat
-```
-
-Both launchers start the chat dev server and the speech adapter, wait for readiness, and open the app. Close the console to stop everything.
-
-## Default ports
-
-- `8090` — chat dev server
-- `8000` — speech adapter (CosyVoice/Whisper by default, or M5 proxy)
-- `8001` — M5-TTS ONNX service when the M5 trial launcher is used
+The backend serves `manifest.webmanifest`, `sw.js` and icons. The service worker and
+installation prompt require a **secure context**: use HTTPS (a reverse proxy with a trusted
+certificate) or `localhost`. On plain `http://<LAN-IP>:8098` the app still opens on a phone,
+but Android/iOS will not install it as a PWA or enable offline mode.
 
 ## Security
 
-API keys and settings are stored in the browser's `localStorage`. Conversations and attachments are stored in IndexedDB. Nothing is uploaded to GitHub from those stores.
-
-Do not commit `.env` files, API keys, additional private voice references or model weights.
+- Passwords are hashed with scrypt; login uses an HttpOnly, SameSite=Lax cookie.
+- Conversations are stored under `chat/server/data/sessions/<userId>/`; this directory is ignored by git.
+- Browser API keys and speech settings remain in localStorage per browser profile.
+- The local TTS/ASR services have no authentication; expose them only on trusted networks.
 
 ## Upstream
 
-The frontend is based on [`deepseek-ai/chat-demo`](https://github.com/deepseek-ai/chat-demo). CosyVoice source is vendored from [`FunAudioLLM/CosyVoice`](https://github.com/FunAudioLLM/CosyVoice) and M5-TTS source from [`ASLP-lab/M5-TTS`](https://github.com/ASLP-lab/M5-TTS); model weights remain on Hugging Face/ModelScope and are downloaded separately.
+The frontend is based on [`deepseek-ai/chat-demo`](https://github.com/deepseek-ai/chat-demo).
+CosyVoice source is vendored from [`FunAudioLLM/CosyVoice`](https://github.com/FunAudioLLM/CosyVoice),
+M5-TTS from [`ASLP-lab/M5-TTS`](https://github.com/ASLP-lab/M5-TTS), and GPT-SoVITS from
+[`RVC-Boss/GPT-SoVITS`](https://github.com/RVC-Boss/GPT-SoVITS); model weights are downloaded separately.

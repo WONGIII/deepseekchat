@@ -77,6 +77,7 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-TTS-Sample-Rate"],
 )
 
 cosyvoice = None
@@ -86,9 +87,10 @@ stella_spk_id = ""
 male_spk_id = ""
 # 默认开启模型流式输出：首句延迟更低；可用 --no-stream 切到质量优先模式
 STREAMING = True
-# TTS 引擎：cosyvoice 本地加载；m5 转发到独立 M5-TTS ONNX 服务
+# TTS 引擎：cosyvoice 本地加载；m5 转发 M5-TTS；gsv 转发 GPT-SoVITS V5 Turbo
 TTS_ENGINE = "cosyvoice"
 M5_URL = "http://127.0.0.1:8001"
+GSV_URL = "http://127.0.0.1:8002"
 asr_model = None
 asr_lock = threading.Lock()
 ASR_MODEL_NAME = ""
@@ -585,11 +587,9 @@ def generate_pcm(text, voice_id, filter_markdown, stream, emotion, language="aut
             yield silence_pcm(sentence_pause_ms(raw, lang, next_lang))
 
 
-def proxy_m5(body):
-    """把 /tts 请求原样转给 M5-TTS 服务，并逐块转发 PCM。"""
-    with requests.post(
-        f"{M5_URL}/tts", json=body, stream=True, timeout=300
-    ) as response:
+def proxy_tts(url, body):
+    """把 /tts 请求原样转给独立 TTS 服务，并逐块转发 PCM。"""
+    with requests.post(f"{url}/tts", json=body, stream=True, timeout=300) as response:
         response.raise_for_status()
         for chunk in response.iter_content(4096):
             if chunk:
@@ -598,18 +598,21 @@ def proxy_m5(body):
 
 @app.get("/health")
 def health():
-    if TTS_ENGINE == "m5":
-        return {
+    if TTS_ENGINE in ("m5", "gsv"):
+        data = {
             "status": "ok",
-            "model": "M5-TTS-50M-ONNX",
-            "sample_rate": TARGET_SAMPLE_RATE,
+            "model": "M5-TTS-50M-ONNX" if TTS_ENGINE == "m5" else "GPT-SoVITS-v5turbo",
+            "sample_rate": 48000 if TTS_ENGINE == "gsv" else TARGET_SAMPLE_RATE,
             "voices": VOICE_IDS,
             "emotions": EMOTION_IDS,
             "asr": ASR_MODEL_NAME or None,
-            "languages": ("zh", "en", "ja", "ko"),
-            "tts_engine": "m5",
-            "m5_url": M5_URL,
+            "languages": ("zh", "en", "ja", "ko") if TTS_ENGINE == "m5" else ("zh", "en", "ja"),
+            "tts_engine": TTS_ENGINE,
         }
+        data["m5_url" if TTS_ENGINE == "m5" else "gsv_url"] = (
+            M5_URL if TTS_ENGINE == "m5" else GSV_URL
+        )
+        return data
     return {
         "status": "ok",
         "model": os.path.basename(MODEL_DIR),
@@ -667,14 +670,20 @@ async def tts(request: Request):
     if voice not in VOICE_IDS:
         voice = "stella"
     filter_markdown = bool(body.get("filter_markdown", True))
-    if TTS_ENGINE == "m5":
+    if TTS_ENGINE in ("m5", "gsv"):
         body["voice_id"] = voice
         body["filter_markdown"] = filter_markdown
         body["stream"] = True
+        url = M5_URL if TTS_ENGINE == "m5" else GSV_URL
+        sample_rate = 48000 if TTS_ENGINE == "gsv" else TARGET_SAMPLE_RATE
         return StreamingResponse(
-            proxy_m5(body),
+            proxy_tts(url, body),
             media_type="audio/pcm",
-            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "X-TTS-Sample-Rate": str(sample_rate),
+            },
         )
     stream = bool(body.get("stream", STREAMING))
     emotion = str(body.get("emotion") or "auto")
@@ -687,15 +696,19 @@ async def tts(request: Request):
     return StreamingResponse(
         generate_pcm(text, voice, filter_markdown, stream, emotion, language),
         media_type="audio/pcm",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "X-TTS-Sample-Rate": str(TARGET_SAMPLE_RATE),
+        },
     )
 
 
 def main():
     global cosyvoice, sample_rate, stella_spk_id, male_spk_id, MODEL_DIR, STREAMING
-    global asr_model, ASR_MODEL_NAME, TTS_ENGINE, M5_URL
+    global asr_model, ASR_MODEL_NAME, TTS_ENGINE, M5_URL, GSV_URL
     parser = argparse.ArgumentParser()
-    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument(
         "--model-dir",
@@ -707,11 +720,12 @@ def main():
     )
     parser.add_argument(
         "--tts-engine",
-        choices=("cosyvoice", "m5"),
+        choices=("cosyvoice", "m5", "gsv"),
         default="cosyvoice",
-        help="TTS 引擎：cosyvoice（默认）或 m5",
+        help="TTS 引擎：cosyvoice（默认）、m5 或 gsv",
     )
     parser.add_argument("--m5-url", default="http://127.0.0.1:8001")
+    parser.add_argument("--gsv-url", default="http://127.0.0.1:8002")
     parser.add_argument("--asr-model", default="small", help="Whisper 模型：tiny/base/small/medium")
     parser.add_argument("--no-asr", action="store_true", help="不加载 Whisper 识别模型")
     parser.set_defaults(stream=True)
@@ -719,6 +733,7 @@ def main():
     STREAMING = bool(args.stream)
     TTS_ENGINE = args.tts_engine
     M5_URL = args.m5_url.rstrip("/")
+    GSV_URL = args.gsv_url.rstrip("/")
     MODEL_DIR = args.model_dir
     if TTS_ENGINE == "cosyvoice":
         log.info(
@@ -748,7 +763,10 @@ def main():
         log.info("emotion speakers cached")
     else:
         sample_rate = TARGET_SAMPLE_RATE
-        log.info("TTS engine: M5-TTS at %s (CosyVoice not loaded)", M5_URL)
+        if TTS_ENGINE == "m5":
+            log.info("TTS engine: M5-TTS at %s (CosyVoice not loaded)", M5_URL)
+        else:
+            log.info("TTS engine: GPT-SoVITS at %s (CosyVoice not loaded)", GSV_URL)
     if args.no_asr:
         log.info("ASR disabled")
     else:

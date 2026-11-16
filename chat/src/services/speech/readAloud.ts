@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { TranslationMessage } from '../../i18n/index.js'
 import { ApiError } from '../api/client.js'
 import { classifyApiError } from '../api/errors.js'
-import { synthesize, TTS_SAMPLE_RATE } from '../api/speech.js'
+import { synthesize } from '../api/speech.js'
 import { getSpeechApiKey, useSettings } from '../settings.js'
 
 /**
@@ -22,6 +22,8 @@ export const useReadAloud = create<ReadAloudState>(() => ({ messageId: null, sta
 
 /** 首帧前多缓冲一点，减少网络抖动造成的断续 */
 const START_DELAY = 0.1
+/** 播放上下文固定 48kHz，各引擎按自身采样率建 buffer，由 Web Audio 重采样 */
+const PLAYBACK_SAMPLE_RATE = 48000
 
 let current: { controller: AbortController; context: AudioContext } | null = null
 
@@ -88,7 +90,7 @@ export const toggleReadAloud = (
     return
   }
   const controller = new AbortController()
-  const context = new AudioContext({ sampleRate: TTS_SAMPLE_RATE })
+  const context = new AudioContext({ sampleRate: PLAYBACK_SAMPLE_RATE })
   current = { controller, context }
   useReadAloud.setState({ messageId, status: 'loading' })
   // 音色与语气在开始朗读时读取，设置中切换后下一次朗读生效
@@ -100,7 +102,7 @@ export const toggleReadAloud = (
     let lastSource: AudioBufferSourceNode | null = null
     let rest = new Uint8Array(0)
     try {
-      const stream = await synthesize(
+      const { stream, sampleRate } = await synthesize(
         apiKey ?? '',
         text,
         ttsVoice,
@@ -122,7 +124,7 @@ export const toggleReadAloud = (
         if (samples.length === 0) {
           continue
         }
-        const buffer = context.createBuffer(1, samples.length, TTS_SAMPLE_RATE)
+        const buffer = context.createBuffer(1, samples.length, sampleRate)
         buffer.copyToChannel(samples, 0)
         const source = context.createBufferSource()
         source.buffer = buffer

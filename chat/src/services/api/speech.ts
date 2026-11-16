@@ -21,8 +21,14 @@ export type TtsEmotion =
   | 'excited'
   | 'dynamic'
 
-/** TTS 输出的裸 PCM 参数：24kHz、单声道、16-bit 小端 */
+/** TTS 输出的默认裸 PCM 参数：24kHz、单声道、16-bit 小端 */
 export const TTS_SAMPLE_RATE = 24000
+
+/** 语音合成结果：PCM 流 + 服务端实际采样率（如 GPT-SoVITS 为 48kHz） */
+export type SynthesizedSpeech = {
+  stream: ReadableStream<Uint8Array>
+  sampleRate: number
+}
 
 /** 语音识别：audio 为 WAV（单声道 16-bit PCM）或 Ogg Opus，时长不超过 120 秒、大小不超过 8 MiB */
 export const transcribe = async (
@@ -63,7 +69,7 @@ export const synthesize = async (
   voice: TtsVoice,
   emotion: TtsEmotion,
   signal: AbortSignal
-): Promise<ReadableStream<Uint8Array>> => {
+): Promise<SynthesizedSpeech> => {
   const response = await request(`${getSpeechBaseUrl()}/tts`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -79,5 +85,10 @@ export const synthesize = async (
   if (!response.body) {
     throw new ApiError('protocol', await response.text())
   }
-  return response.body
+  const reported = Number(response.headers.get('X-TTS-Sample-Rate'))
+  const sampleRate =
+    Number.isFinite(reported) && reported >= 8000 && reported <= 96000
+      ? reported
+      : TTS_SAMPLE_RATE
+  return { stream: response.body, sampleRate }
 }

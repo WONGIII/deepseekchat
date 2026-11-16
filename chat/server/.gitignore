@@ -1,0 +1,3 @@
+# User data is local-only
+data/
+node_modules/

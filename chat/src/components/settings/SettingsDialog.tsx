@@ -18,6 +18,7 @@ import {
   importHistory,
 } from '../../services/chat/backup.js'
 import { useChatStore } from '../../services/chat/store.js'
+import { logout, useAuth } from '../../services/auth.js'
 import { regionCodes, getRegionName, provinces } from '../../services/location.js'
 import {
   DEFAULT_LLM_BASE_URL,
@@ -117,6 +118,7 @@ const SettingsContent = () => {
         <div role="tabpanel" className={styles.content}>
           {section === 'general' ? (
             <>
+              <AccountSetting />
               <ThemeSetting />
               <LocaleSetting />
               <TtsVoiceSetting />
@@ -822,6 +824,30 @@ const describeModelError = (error: unknown): Status => {
     params: { message: error instanceof Error ? error.message : String(error) },
     error: true,
   }
+}
+
+const AccountSetting = () => {
+  const t = useTranslate()
+  const user = useAuth((state) => state.user)
+  return (
+    <SettingCell
+      label={t('authAccount')}
+      description={user ? `@${user.username}` : ''}
+      status={null}
+      action={
+        <Button
+          variant="dangerOutlined"
+          size="m"
+          className={styles.cellButton}
+          onClick={() => {
+            void logout().then(() => window.location.reload())
+          }}
+        >
+          {t('authLogout')}
+        </Button>
+      }
+    />
+  )
 }
 
 const SettingCell = ({
