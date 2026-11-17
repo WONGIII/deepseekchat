@@ -8,6 +8,7 @@ import threading
 
 import num2words
 import onnxruntime
+import aiohttp
 import requests
 import torch
 import torchaudio
@@ -587,13 +588,19 @@ def generate_pcm(text, voice_id, filter_markdown, stream, emotion, language="aut
             yield silence_pcm(sentence_pause_ms(raw, lang, next_lang))
 
 
-def proxy_tts(url, body):
-    """把 /tts 请求原样转给独立 TTS 服务，并逐块转发 PCM。"""
-    with requests.post(f"{url}/tts", json=body, stream=True, timeout=300) as response:
-        response.raise_for_status()
-        for chunk in response.iter_content(4096):
-            if chunk:
-                yield chunk
+async def proxy_tts_async(url, body, request):
+    """异步转发 PCM；客户端一断开就关闭上游连接，避免 GSV 继续推理。"""
+    timeout = aiohttp.ClientTimeout(total=None, sock_connect=10, sock_read=300)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with session.post(f"{url}/tts", json=body) as response:
+            if response.status >= 400:
+                detail = await response.text()
+                raise RuntimeError(f"upstream TTS {response.status}: {detail[:200]}")
+            async for chunk in response.content.iter_chunked(4096):
+                if await request.is_disconnected():
+                    break
+                if chunk:
+                    yield chunk
 
 
 @app.get("/health")
@@ -677,7 +684,7 @@ async def tts(request: Request):
         url = M5_URL if TTS_ENGINE == "m5" else GSV_URL
         sample_rate = 48000 if TTS_ENGINE == "gsv" else TARGET_SAMPLE_RATE
         return StreamingResponse(
-            proxy_tts(url, body),
+            proxy_tts_async(url, body, request),
             media_type="audio/pcm",
             headers={
                 "Cache-Control": "no-cache",

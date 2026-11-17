@@ -6,6 +6,7 @@ server-side conversation storage, a PWA shell, and local speech services.
 ```text
 chat/          React + TypeScript frontend
 chat/server/   Node account/chat backend (JSON storage, HttpOnly cookie auth)
+android-app/   Native Android client (Kotlin + Jetpack Compose)
 cosyvoice3/    CosyVoice3 TTS + Whisper ASR adapter and vendored CosyVoice source
 m5-tts/        M5-TTS 50M ONNX trial engine
 gpt-sovits/    GPT-SoVITS V5 Turbo trial engine (native 48 kHz)
@@ -23,6 +24,8 @@ gpt-sovits/    GPT-SoVITS V5 Turbo trial engine (native 48 kHz)
 - M5-TTS 50M ONNX trial engine
 - Local Whisper ASR for voice input
 - Streaming text, thinking-chain animation, HTML preview and responsive mobile UI
+- Native Android app with shared-element transitions, local-first storage, optional cloud login,
+  local PDF/Office text extraction and local TTS/ASR playback
 - All services bind to `0.0.0.0` by default
 
 ## Not included
@@ -116,6 +119,20 @@ chat\stop-all.bat         :: stop all local services
 - `8000` — speech adapter (TTS proxy + Whisper ASR)
 - `8001` — M5-TTS (optional)
 - `8002` — GPT-SoVITS (optional)
+
+### 5. Native Android app
+
+The `android-app/` project is a native Jetpack Compose client. Open it in Android Studio or
+build from the command line:
+
+```bat
+cd android-app
+gradlew assembleRelease
+```
+
+The default mode is local-first: conversations and settings stay on the device. A server URL
+can be configured later for multi-user cloud sessions. Speech and model endpoints are set in
+the app's own settings page, independent of the web build.
 
 ## PWA / phone
 

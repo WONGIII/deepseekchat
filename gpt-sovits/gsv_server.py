@@ -5,6 +5,7 @@ the same 24 kHz mono PCM /tts protocol as the CosyVoice and M5 adapters.
 """
 
 import argparse
+import asyncio
 import logging
 import os
 import re
@@ -13,6 +14,15 @@ import threading
 
 import numpy as np
 import uvicorn
+
+# Windows logs are redirected with a GBK locale; model text often contains emoji.
+# Reconfigure the streams so a debug print can never kill the streaming response.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -130,7 +140,7 @@ def to_pcm16(audio, sample_rate):
     return audio.tobytes()
 
 
-def generate_pcm(text, voice_id, filter_markdown, language_override):
+def generate_pcm(text, voice_id, filter_markdown, language_override, cancel_event=None):
     if filter_markdown:
         text = clean_markdown(text)
     voice_path, prompt_text = VOICES.get(voice_id, VOICES["stella"])
@@ -144,6 +154,9 @@ def generate_pcm(text, voice_id, filter_markdown, language_override):
         prepared.append((raw, lang))
 
     for index, (sentence, lang) in enumerate(prepared):
+        if cancel_event is not None and cancel_event.is_set():
+            log.info("gsv synthesis cancelled by client disconnect")
+            break
         log.info("gsv synthesize [%s]: %s", lang, sentence[:60])
         with infer_lock:
             for sr, audio in tts_pipeline.run(
@@ -166,6 +179,8 @@ def generate_pcm(text, voice_id, filter_markdown, language_override):
                     "use_flash_attention": False,
                 }
             ):
+                if cancel_event is not None and cancel_event.is_set():
+                    break
                 yield to_pcm16(audio, sr)
         if index + 1 < len(prepared):
             next_lang = prepared[index + 1][1]
@@ -222,8 +237,32 @@ async def tts(request: Request):
         "english": "en",
     }.get(requested, None)
 
+    cancel_event = threading.Event()
+
+    async def watch_disconnect():
+        try:
+            while not cancel_event.is_set():
+                if await request.is_disconnected():
+                    log.info("gsv client disconnected, stopping synthesis")
+                    cancel_event.set()
+                    return
+                await asyncio.sleep(0.1)
+        except asyncio.CancelledError:
+            return
+
+    watcher = asyncio.create_task(watch_disconnect())
+
+    def stream_with_cancel():
+        try:
+            yield from generate_pcm(
+                text, voice, filter_markdown, language_override, cancel_event
+            )
+        finally:
+            cancel_event.set()
+            watcher.cancel()
+
     return StreamingResponse(
-        generate_pcm(text, voice, filter_markdown, language_override),
+        stream_with_cancel(),
         media_type="audio/pcm",
         headers={
             "Cache-Control": "no-cache",

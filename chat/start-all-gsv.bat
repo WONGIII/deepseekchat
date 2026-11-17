@@ -21,6 +21,8 @@ echo [1/8] Stopping old services on ports 8090 / 8098 / 8000 / 8001 / 8002...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "foreach($port in 8090,8098,8000,8001,8002){ Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | ForEach-Object { $p = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue; if($p -and ($p.ProcessName -eq 'node' -or $p.ProcessName -eq 'python' -or $p.ProcessName -eq 'pythonw')) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } } }"
 
 echo [2/8] Building frontend...
+set "PYTHONIOENCODING=utf-8"
+set "PYTHONUTF8=1"
 set NODE_ENV=production
 call pnpm exec rspack build -c rspack.config.ts > "%LOGS%\build.log" 2>&1
 if errorlevel 1 (

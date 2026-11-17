@@ -1,0 +1,17 @@
+# Gradle / Android build output
+.gradle/
+.kotlin/
+build/
+app/build/
+local.properties
+
+# Signing and packaged artifacts
+*.apk
+*.aab
+*.jks
+*.keystore
+keystore.properties
+
+# Local test data and screenshots
+demo-data/
+screenshots/
