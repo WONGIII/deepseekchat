@@ -22,6 +22,7 @@ gpt-sovits/repo/GPT_SoVITS/pretrained_models/
 # Reference voice audio: only the current stella clip is tracked
 cosyvoice3/voices/*.wav
 !cosyvoice3/voices/stella.wav
+!cosyvoice3/voices/tide.wav
 
 # Generated audio and request fixtures
 cosyvoice3/*.wav

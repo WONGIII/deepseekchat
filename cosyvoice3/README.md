@@ -59,7 +59,7 @@ Or use `start.bat`.
 
 ## Voice reference
 
-`stella` uses `voices/stella.wav` when present. If it is absent, the official `repo/asset/zero_shot_prompt.wav` and official transcript are used. See `voices/README.md`.
+`stella` uses `voices/stella.wav`, a neutral weather-forecast reference generated with the local engine. If it is absent, the official `repo/asset/zero_shot_prompt.wav` and official transcript are used. See `voices/README.md`.
 
 `tide` prefers `voices/tide.wav` when present and falls back to the official `repo/asset/cross_lingual_prompt.wav`.
 

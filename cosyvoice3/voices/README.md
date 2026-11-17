@@ -1,11 +1,11 @@
 # Voice reference
 
-This private repository includes the current `stella.wav` reference clip:
+This repository includes two reference clips:
 
-- mono
-- 44.1 kHz source, trimmed to about 10 seconds
-- clean, without long silence or background music
+- `stella.wav`: a neutral Cantonese/Mandarin weather-forecast reference generated
+  locally for the Stella voice, 48 kHz mono.
+- `tide.wav`: the male Tide reference, 44.1 kHz stereo source.
 
-Other voice clips and backups are ignored by the root `.gitignore`. If `stella.wav` is absent, the adapter falls back to the official `repo/asset/zero_shot_prompt.wav` and its official transcript.
+Other voice clips and backups are ignored by the root `.gitignore`. The original intimate Stella clip is kept only locally as `ostella.wav` and is not published. If `stella.wav` is absent, the adapter falls back to the official `repo/asset/zero_shot_prompt.wav` and its official transcript.
 
 `tide.wav` is an optional local male reference used by the `tide` voice. It is not committed; when absent, GPT-SoVITS falls back to the Stella reference and CosyVoice falls back to `repo/asset/cross_lingual_prompt.wav`.
