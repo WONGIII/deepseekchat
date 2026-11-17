@@ -253,13 +253,21 @@ private fun MarkdownNode(
                 )
                 Spacer(Modifier.height(if (level <= 3) 8.dp else 4.dp))
             }
-            is BulletList -> LastBlockFade(child.next == null && fadeChars > 0, fadeProgress) {
-                ListBlock(child, ordered = false, typography = typography)
-            }
-            is OrderedList -> LastBlockFade(child.next == null && fadeChars > 0, fadeProgress) {
-                ListBlock(child, ordered = true, typography = typography)
-            }
-            is BlockQuote -> LastBlockFade(child.next == null && fadeChars > 0, fadeProgress) {
+            is BulletList -> ListBlock(
+                child,
+                ordered = false,
+                typography = typography,
+                fadeChars = if (child.next == null) fadeChars else 0,
+                fadeProgress = fadeProgress,
+            )
+            is OrderedList -> ListBlock(
+                child,
+                ordered = true,
+                typography = typography,
+                fadeChars = if (child.next == null) fadeChars else 0,
+                fadeProgress = fadeProgress,
+            )
+            is BlockQuote -> {
                 Row(Modifier.padding(vertical = 8.dp)) {
                     Box(
                         Modifier
@@ -273,23 +281,13 @@ private fun MarkdownNode(
                     }
                 }
             }
-            is FencedCodeBlock -> {
-                val block = child
-                LastBlockFade(block.next == null && fadeChars > 0, fadeProgress) {
-                    CodeBlock(
-                        code = block.literal.trimEnd(),
-                        language = block.info?.trim()?.substringBefore(' ').orEmpty(),
-                        onOpenHtml = onOpenHtml,
-                    )
-                }
-            }
-            is IndentedCodeBlock -> {
-                val block = child
-                LastBlockFade(block.next == null && fadeChars > 0, fadeProgress) {
-                    CodeBlock(block.literal.trimEnd(), "", onOpenHtml)
-                }
-            }
-            is ThematicBreak -> LastBlockFade(child.next == null && fadeChars > 0, fadeProgress) {
+            is FencedCodeBlock -> CodeBlock(
+                code = child.literal.trimEnd(),
+                language = child.info?.trim()?.substringBefore(' ').orEmpty(),
+                onOpenHtml = onOpenHtml,
+            )
+            is IndentedCodeBlock -> CodeBlock(child.literal.trimEnd(), "", onOpenHtml)
+            is ThematicBreak -> {
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -298,30 +296,10 @@ private fun MarkdownNode(
                         .background(colors.divider)
                 )
             }
-            is TableBlock -> {
-                val block = child
-                LastBlockFade(block.next == null && fadeChars > 0, fadeProgress) {
-                    TableBlockView(block, typography)
-                }
-            }
+            is TableBlock -> TableBlockView(child, typography)
             else -> if (child is Paragraph || child is Heading) Unit
         }
         child = child.next
-    }
-}
-
-@Composable
-private fun LastBlockFade(
-    active: Boolean,
-    progress: () -> Float,
-    content: @Composable () -> Unit,
-) {
-    if (active) {
-        Box(Modifier.graphicsLayer(alpha = 0.15f + 0.85f * progress())) {
-            content()
-        }
-    } else {
-        content()
     }
 }
 
@@ -429,11 +407,14 @@ private fun ListBlock(
     node: Node,
     ordered: Boolean,
     typography: com.wongiii.chat.design.ChatTypography,
+    fadeChars: Int = 0,
+    fadeProgress: () -> Float = { 1f },
 ) {
     var index = 1
     var child = node.firstChild
     while (child != null) {
         if (child is ListItem) {
+            val isLast = child.next == null
             Row(Modifier.padding(start = 4.dp, top = 4.dp)) {
                 Text(
                     text = if (ordered) "${index}. " else "• ",
@@ -443,7 +424,13 @@ private fun ListBlock(
                 )
                 Column(Modifier.weight(1f)) {
                     val itemChildren = child
-                    MarkdownNode(itemChildren, typography, null)
+                    MarkdownNode(
+                        itemChildren,
+                        typography,
+                        null,
+                        fadeChars = if (isLast) fadeChars else 0,
+                        fadeProgress = fadeProgress,
+                    )
                 }
             }
             index++
