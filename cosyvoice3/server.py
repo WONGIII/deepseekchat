@@ -53,7 +53,12 @@ STELLA_PROMPT_WAV = (
     if os.path.exists(CUSTOM_STELLA_WAV)
     else os.path.join(REPO, "asset", "zero_shot_prompt.wav")
 )
-MALE_PROMPT_WAV = os.path.join(REPO, "asset", "cross_lingual_prompt.wav")
+CUSTOM_TIDE_WAV = os.path.join(ROOT, "voices", "tide.wav")
+MALE_PROMPT_WAV = (
+    CUSTOM_TIDE_WAV
+    if os.path.exists(CUSTOM_TIDE_WAV)
+    else os.path.join(REPO, "asset", "cross_lingual_prompt.wav")
+)
 # CosyVoice3 文本/提示中必须包含该控制标记
 EOS_PREFIX = "You are a helpful assistant.<|endofprompt|>"
 # 自定义参考音频及对应文字稿（Whisper small 识别，保留原有语气词）；没有自定义音频时使用官方文字稿

@@ -7,7 +7,7 @@ V5 Turbo (`v5turbo`) for the chat-demo read-aloud feature.
 - SoVITS V5 Turbo: 383.1M parameters (`s2Gv5turbo.pth`)
 - vocoder: 14.4M parameters
 - 4-step sampling (Turbo), **native 48 kHz mono** output; the 8000 adapter forwards the native sample rate via `X-TTS-Sample-Rate` and the browser plays it without downsampling
-- zero-shot voice cloning with the stella reference (prompt text Chinese)
+- zero-shot voice cloning with local reference clips (`stella` / `tide`, prompt text Chinese)
 
 ## Local layout
 
@@ -105,6 +105,6 @@ ASR remains Whisper; TTS is forwarded to GPT-SoVITS on 8002.
 - V5 Turbo uses non-streaming synthesis in this local pipeline; the server splits text per sentence and returns one chunk per sentence.
 - First request after startup is slow (about 8 s for the first Chinese request); warmed requests are about 0.8–2 s to first audio on the RTX 4070 Laptop.
 - `emotion` / dynamic tone settings are ignored; GPT-SoVITS is voice cloning + text, not instruct-controlled in this setup.
-- `tide` is mapped to the same stella reference; there is no separate male preset here.
+- `tide` uses `cosyvoice3/voices/tide.wav` with its Chinese prompt text; if the file is absent it falls back to the stella reference.
 - Mixed Chinese/Japanese sentences are routed per sentence, but Whisper transcribing mixed audio can label the Japanese part as Chinese; verify synthesis via `gsv.log`.
 - The adapter still provides Whisper ASR on port 8000 while GPT-SoVITS serves TTS on 8002.

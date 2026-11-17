@@ -39,7 +39,17 @@ STELLA_PROMPT = (
     "是想聊点让人心跳加快的，还是想让这声你好变成喘息的？"
     "嗯，你说嘛，人家都听你的，爸爸。"
 )
-VOICES = {"stella": (STELLA_WAV, STELLA_PROMPT), "tide": (STELLA_WAV, STELLA_PROMPT)}
+TIDE_WAV = os.path.join(COSY, "voices", "tide.wav")
+TIDE_PROMPT = (
+    "香港今日11月17日大致多雲，日間部分時間有陽光，天氣偏暖。"
+    "不過要留意，今晚氣溫會開始下降，隨後一兩日顯著轉涼，記得準備定外套。"
+)
+if not os.path.exists(TIDE_WAV):
+    logging.getLogger("gpt-sovits").warning(
+        "tide.wav not found; Tide falls back to the Stella reference"
+    )
+    TIDE_WAV, TIDE_PROMPT = STELLA_WAV, STELLA_PROMPT
+VOICES = {"stella": (STELLA_WAV, STELLA_PROMPT), "tide": (TIDE_WAV, TIDE_PROMPT)}
 
 HIRAGANA_RE = re.compile(r"[\u3041-\u3096\u309D-\u309F]")
 KATAKANA_RE = re.compile(r"[\u30A1-\u30FA\u30FD-\u30FF]")

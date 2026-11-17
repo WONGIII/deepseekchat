@@ -61,7 +61,7 @@ Or use `start.bat`.
 
 `stella` uses `voices/stella.wav` when present. If it is absent, the official `repo/asset/zero_shot_prompt.wav` and official transcript are used. See `voices/README.md`.
 
-`tide` uses the official `repo/asset/cross_lingual_prompt.wav`.
+`tide` prefers `voices/tide.wav` when present and falls back to the official `repo/asset/cross_lingual_prompt.wav`.
 
 ## Website configuration
 
