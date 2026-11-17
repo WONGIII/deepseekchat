@@ -40,7 +40,7 @@ STELLA_PROMPT = (
 )
 TIDE_WAV = os.path.join(COSY, "voices", "tide.wav")
 TIDE_PROMPT = (
-    "香港今日11月17日大致多雲，日間部分時間有陽光。"
+    "香港今日11月17日大致多雲，日間部分時間有陽光，天氣偏暖。"
 )
 if not os.path.exists(TIDE_WAV):
     logging.getLogger("gpt-sovits").warning(
