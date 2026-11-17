@@ -13,8 +13,8 @@ android {
         applicationId = "com.wongiii.chat"
         minSdk = 26
         targetSdk = 35
-        versionCode = 22
-        versionName = "1.4.8"
+        versionCode = 23
+        versionName = "1.4.9"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
     }

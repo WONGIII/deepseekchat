@@ -661,7 +661,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         toast("已获取 ${models.size} 个模型")
                     }
                 }
-                .onFailure { toast("获取模型失败：${it.message}") }
+                .onFailure { error ->
+                    toast("获取模型失败：${error.message ?: error.javaClass.simpleName}")
+                }
         }
     }
 

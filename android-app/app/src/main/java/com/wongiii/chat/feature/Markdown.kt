@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -540,38 +541,49 @@ private fun TableBlockView(
         }
         child = child.next
     }
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(vertical = 10.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(colors.card)
-            .padding(1.dp),
-    ) {
-        rows.forEachIndexed { rowIndex, row ->
-            Row(Modifier.background(if (rowIndex == 0) colors.codeBanner else colors.card)) {
-                var cell = row.firstChild
-                while (cell != null) {
-                    if (cell is TableCell) {
-                        val text = buildInline(cell, colors.tagBg, colors.textPrimary, colors.accent)
-                        Text(
-                            text = text,
-                            modifier = Modifier
-                                .width(150.dp)
-                                .padding(horizontal = 12.dp, vertical = 9.dp),
-                            style = typography.body.copy(
-                                fontSize = 14.sp,
-                                fontWeight = if (rowIndex == 0) FontWeight.Medium else FontWeight.Normal,
-                            ),
-                            color = colors.textPrimary,
-                        )
+    val columnCount = rows.maxOfOrNull { row ->
+        var count = 0
+        var cell = row.firstChild
+        while (cell != null) {
+            if (cell is TableCell) count++
+            cell = cell.next
+        }
+        count
+    }?.coerceAtLeast(1) ?: 1
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+        val cellWidth = (maxWidth / columnCount).coerceAtLeast(96.dp)
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .clip(RoundedCornerShape(10.dp))
+                .background(colors.card)
+                .padding(1.dp),
+        ) {
+            rows.forEachIndexed { rowIndex, row ->
+                Row(Modifier.background(if (rowIndex == 0) colors.codeBanner else colors.card)) {
+                    var cell = row.firstChild
+                    while (cell != null) {
+                        if (cell is TableCell) {
+                            val text = buildInline(cell, colors.tagBg, colors.textPrimary, colors.accent)
+                            Text(
+                                text = text,
+                                modifier = Modifier
+                                    .width(cellWidth)
+                                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                                style = typography.body.copy(
+                                    fontSize = 14.sp,
+                                    fontWeight = if (rowIndex == 0) FontWeight.Medium else FontWeight.Normal,
+                                ),
+                                color = colors.textPrimary,
+                            )
+                        }
+                        cell = cell.next
                     }
-                    cell = cell.next
                 }
-            }
-            if (rowIndex < rows.lastIndex) {
-                Box(Modifier.fillMaxWidth().height(0.5.dp).background(colors.divider))
+                if (rowIndex < rows.lastIndex) {
+                    Box(Modifier.fillMaxWidth().height(0.5.dp).background(colors.divider))
+                }
             }
         }
     }

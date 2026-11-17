@@ -71,6 +71,9 @@ class LlmApi(private val factory: HttpClientFactory) {
         runCatching {
             val uri = java.net.URI(baseUrl)
             val origin = "${uri.scheme}://${uri.host}${if (uri.port > 0) ":${uri.port}" else ""}"
+            // Most OpenAI-compatible gateways expose /v1/models from the origin,
+            // even when the chat base URL is just http://host:port.
+            urls += endpoint(origin, "v1/models")
             urls += endpoint(origin, "models")
         }
         var lastError: Throwable? = null
