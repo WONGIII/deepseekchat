@@ -65,7 +65,6 @@ EOS_PREFIX = "You are a helpful assistant.<|endofprompt|>"
 CUSTOM_STELLA_PROMPT_TEXT = (
     EOS_PREFIX
     + "香港今日11月17日大致多雲，日間部分時間有陽光，天氣偏暖。"
-    + "不過要留意，今晚氣溫會開始下降，隨後一兩日顯著轉涼，記得準備定外套。"
 )
 STELLA_PROMPT_TEXT = (
     CUSTOM_STELLA_PROMPT_TEXT

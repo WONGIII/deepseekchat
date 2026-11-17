@@ -37,7 +37,6 @@ OUTPUT_SAMPLE_RATE = 48000
 STELLA_WAV = os.path.join(COSY, "voices", "stella.wav")
 STELLA_PROMPT = (
     "香港今日11月17日大致多雲，日間部分時間有陽光，天氣偏暖。"
-    "不過要留意，今晚氣溫會開始下降，隨後一兩日顯著轉涼，記得準備定外套。"
 )
 TIDE_WAV = os.path.join(COSY, "voices", "tide.wav")
 TIDE_PROMPT = (
