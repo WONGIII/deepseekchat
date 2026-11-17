@@ -38,6 +38,7 @@ m5-tts/               M5-TTS 50M ONNX 试验性 TTS 服务
 
 ### 网页端
 
+- 默认本地优先，不登录也能完整聊天；登录后切换到账号云端会话
 - 流式 Markdown 回答、思维链、联网搜索与引用
 - 会话分支、编辑、重新生成、继续生成、停止
 - 图片/PDF/Word/PPT/Excel/文本附件；文件在本机解析，不依赖文件上传接口
@@ -140,6 +141,8 @@ chat\stop-all.bat         停止本机全部服务
 关闭一键启动的控制台窗口会停止由它启动的服务。
 
 ### 4. 原生 Android 客户端
+
+最新安装包：[GitHub Releases](https://github.com/WONGIII/deepseekchat/releases/latest)
 
 ```bat
 cd android-app
