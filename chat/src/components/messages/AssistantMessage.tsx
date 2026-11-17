@@ -24,8 +24,6 @@ import {
 } from './BranchSwitcher.js'
 import styles from './AssistantMessage.module.css'
 
-const TOP_UP_URL = 'https://platform.deepseek.com/top_up'
-
 export const AssistantMessage = memo(function AssistantMessage({
   sessionId,
   message,
@@ -106,19 +104,6 @@ export const AssistantMessage = memo(function AssistantMessage({
                 >
                   {t('changeApiKey')}
                 </button>
-              </>
-            ) : null}
-            {notice.action === 'topUp' ? (
-              <>
-                {' '}
-                <a
-                  className={styles.noticeAction}
-                  href={TOP_UP_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {t('topUp')}
-                </a>
               </>
             ) : null}
           </span>

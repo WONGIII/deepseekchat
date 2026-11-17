@@ -19,6 +19,7 @@ import {
 } from '../../services/chat/backup.js'
 import { useChatStore } from '../../services/chat/store.js'
 import { logout, useAuth } from '../../services/auth.js'
+import { openAuthOverlay } from '../auth/authUiState.js'
 import { regionCodes, getRegionName, provinces } from '../../services/location.js'
 import {
   DEFAULT_LLM_BASE_URL,
@@ -829,22 +830,34 @@ const describeModelError = (error: unknown): Status => {
 const AccountSetting = () => {
   const t = useTranslate()
   const user = useAuth((state) => state.user)
+  const status = useAuth((state) => state.status)
   return (
     <SettingCell
       label={t('authAccount')}
-      description={user ? `@${user.username}` : ''}
+      description={user ? `@${user.username}` : t('authLocalMode')}
       status={null}
       action={
-        <Button
-          variant="dangerOutlined"
-          size="m"
-          className={styles.cellButton}
-          onClick={() => {
-            void logout().then(() => window.location.reload())
-          }}
-        >
-          {t('authLogout')}
-        </Button>
+        status === 'authenticated' ? (
+          <Button
+            variant="dangerOutlined"
+            size="m"
+            className={styles.cellButton}
+            onClick={() => {
+              void logout().then(() => window.location.reload())
+            }}
+          >
+            {t('authLogout')}
+          </Button>
+        ) : (
+          <Button
+            variant="primary"
+            size="m"
+            className={styles.cellButton}
+            onClick={openAuthOverlay}
+          >
+            {t('authLoginAction')}
+          </Button>
+        )
       }
     />
   )

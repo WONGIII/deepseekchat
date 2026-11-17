@@ -8,6 +8,15 @@
 
 > English README: [README.en.md](README.en.md)
 
+## App 截图
+
+<p align="center">
+  <img src="docs/screenshots/android-welcome.png" width="230" alt="Android 欢迎页" />
+  <img src="docs/screenshots/android-chat.png" width="230" alt="Android 聊天页" />
+  <img src="docs/screenshots/android-drawer.png" width="230" alt="Android 会话抽屉" />
+  <img src="docs/screenshots/android-settings.png" width="230" alt="Android 设置页" />
+</p>
+
 ## 目录结构
 
 ```text

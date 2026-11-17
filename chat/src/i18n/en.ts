@@ -14,7 +14,7 @@ export const en = {
     'Chats or attachments have not been saved locally. Retry before closing this page.',
   sessionDeleteFailed: 'Unable to delete this chat. Please try again.',
   settings: 'Settings',
-  appName: 'API usage demo',
+  appName: 'Chat',
   deleteSessionModalContentTitle: 'Delete chat?',
   deleteSessionWithFilesDescription:
     'This chat and its uploaded files will be permanently deleted and cannot be recovered. Delete this chat?',
@@ -86,7 +86,7 @@ export const en = {
   groupTitleToolOpen: 'Browsing the web',
   messageThinking: 'Thinking',
   backupInvalidJson: 'The file is not valid JSON.',
-  backupUnrecognized: 'File not recognized. Please choose a DeepSeek chat history ZIP.',
+  backupUnrecognized: 'File not recognized. Please choose a compatible Chat history ZIP.',
   backupNewerVersion: 'This file uses a newer version. Please update the app before importing.',
   backupInvalidVersion: 'The file version is invalid and cannot be imported.',
   backupIncomplete: 'The file is incomplete and cannot be imported.',
@@ -161,11 +161,11 @@ export const en = {
   historyImportConfirmDescription:
     'The uploaded chat history will replace all your current chats. Import anyway?',
   historyImportDescription:
-    'Importing chat history replaces all local chats and attachments. Supports ZIP files exported from DeepSeek.',
+    'Importing chat history replaces all local chats and attachments. Supports Chat and compatible ZIP exports.',
   historyImportedOne: 'Imported 1 chat',
   historyImported: 'Imported {count} chats',
   historyImportFailed:
-    'File import failed. The file format may be invalid, or the ZIP file may use an older chat export format. Please export your chat history from DeepSeek again and retry the import.',
+    'File import failed. The file format may be invalid, or the ZIP file may use an older chat export format. Please export the chat history again and retry.',
   historyExportFailed: 'Export failed: {message}',
   exportAllLabel: 'Export all chats',
   historyExportDescription:
@@ -233,6 +233,8 @@ export const en = {
   authSwitchToRegister: 'No account? Register',
   authSwitchToLogin: 'Already registered? Sign in',
   authLogout: 'Sign out',
+  authLocalMode: 'Continue without signing in',
+  authAgreement: 'Your chats are stored on this server after signing in. You can also keep using the app locally.',
   authAccount: 'Account',
   latestReminderLanguage: 'English',
   settingsLocaleZhCN: 'Simplified Chinese',

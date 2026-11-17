@@ -89,18 +89,14 @@ export const onUploadNotice = (listener: NoticeListener) => {
   }
 }
 
-/** 删除已上传文件的接口文档 */
-const DELETE_FILE_DOCS_URL = 'https://api-docs.deepseek.com/api/delete-file'
-
 /** 文件数或存储空间达到上限：附件上只放得下「上传失败」，原因另用 toast 说明并引导删除旧文件 */
 export const describeUploadQuota = (error: unknown): LinkedMessage | undefined => {
   const info = getUploadErrorInfo(error)
-  const link = { key: 'uploadDeleteFiles', href: DELETE_FILE_DOCS_URL } as const
   if (info?.code === 'fileCountLimit') {
-    return { type: 'error', key: 'uploadFileCountLimit', params: { limit: info.limit ?? '' }, link }
+    return { type: 'error', key: 'uploadFileCountLimit', params: { limit: info.limit ?? '' } }
   }
   if (info?.code === 'storageLimit') {
-    return { type: 'error', key: 'uploadStorageLimit', params: { limit: info.limit ?? '' }, link }
+    return { type: 'error', key: 'uploadStorageLimit', params: { limit: info.limit ?? '' } }
   }
   return undefined
 }

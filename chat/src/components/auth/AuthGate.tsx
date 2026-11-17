@@ -1,16 +1,22 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { useTranslate } from '../../i18n/index.js'
 import { Button } from '../base/Button.js'
+import { BrandMark } from '../base/BrandMark.js'
 import { login, loadCurrentUser, register, useAuth } from '../../services/auth.js'
 import { loadRemoteNetworkSettings } from '../../services/settings.js'
+import { closeAuthOverlay, useAuthUi } from './authUiState.js'
 import styles from './AuthGate.module.css'
 
-/** 登录/注册外壳；认证成功后才挂载聊天应用，避免未登录时发起会话请求 */
+/**
+ * 本地优先外壳：默认直接挂载聊天应用，不需要登录。
+ * 登录页作为可选覆盖层，从侧边栏或设置里的“登录 / 同步”打开。
+ */
 export const AuthGate = ({ children }: { children: ReactNode }) => {
   const t = useTranslate()
   const status = useAuth((state) => state.status)
-  const error = useAuth((state) => state.error)
+  const authError = useAuth((state) => state.error)
   const sessionUsername = useAuth((state) => state.user?.username)
+  const overlayOpen = useAuthUi((state) => state.open)
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -27,6 +33,7 @@ export const AuthGate = ({ children }: { children: ReactNode }) => {
       setSettingsReady(false)
       return
     }
+    closeAuthOverlay()
     let cancelled = false
     void loadRemoteNetworkSettings(sessionUsername).finally(() => {
       if (!cancelled) {
@@ -38,17 +45,6 @@ export const AuthGate = ({ children }: { children: ReactNode }) => {
     }
   }, [status, sessionUsername])
 
-  if (status === 'authenticated') {
-    return settingsReady ? (
-      children
-    ) : (
-      <div className={styles.splash} role="status" aria-live="polite">
-        <span className={styles.spinner} />
-        {t('authLoading')}
-      </div>
-    )
-  }
-
   if (status === 'loading') {
     return (
       <div className={styles.splash} role="status" aria-live="polite">
@@ -58,16 +54,11 @@ export const AuthGate = ({ children }: { children: ReactNode }) => {
     )
   }
 
-  if (status === 'error') {
+  if (status === 'authenticated' && !settingsReady) {
     return (
-      <div className={styles.page}>
-        <div className={styles.card}>
-          <h1 className={styles.title}>{t('authServerError')}</h1>
-          <p className={styles.hint}>{error}</p>
-          <Button variant="primary" size="m" onClick={() => void loadCurrentUser()}>
-            {t('retry')}
-          </Button>
-        </div>
+      <div className={styles.splash} role="status" aria-live="polite">
+        <span className={styles.spinner} />
+        {t('authLoading')}
       </div>
     )
   }
@@ -78,6 +69,8 @@ export const AuthGate = ({ children }: { children: ReactNode }) => {
     setFormError(null)
     try {
       await (mode === 'login' ? login : register)(username.trim(), password)
+      // 本地会话与云端会话使用不同数据源；登录成功后重新初始化。
+      window.location.reload()
     } catch (submitError) {
       setFormError(submitError instanceof Error ? submitError.message : String(submitError))
     } finally {
@@ -86,66 +79,88 @@ export const AuthGate = ({ children }: { children: ReactNode }) => {
   }
 
   return (
-    <div className={styles.page}>
-      <form className={styles.card} onSubmit={submit}>
-        <div className={styles.brand}>deepseek</div>
-        <h1 className={styles.title}>
-          {t(mode === 'login' ? 'authLoginTitle' : 'authRegisterTitle')}
-        </h1>
-        <p className={styles.hint}>
-          {t(mode === 'login' ? 'authLoginHint' : 'authRegisterHint')}
-        </p>
-        <label className={styles.field}>
-          <span>{t('authUsername')}</span>
-          <input
-            name="username"
-            autoComplete="username"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            minLength={2}
-            maxLength={32}
-            required
-            autoFocus
-          />
-        </label>
-        <label className={styles.field}>
-          <span>{t('authPassword')}</span>
-          <input
-            name="password"
-            type="password"
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            minLength={6}
-            maxLength={128}
-            required
-          />
-        </label>
-        {formError ? (
-          <div className={styles.error} role="alert">
-            {formError}
+    <>
+      {children}
+      {overlayOpen && status !== 'authenticated' ? (
+        <div
+          className={styles.overlay}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('authLoginTitle')}
+        >
+          <button
+            type="button"
+            className={styles.close}
+            aria-label={t('cancel')}
+            onClick={closeAuthOverlay}
+          >
+            ×
+          </button>
+          <div className={styles.panel}>
+            <div className={styles.logoRow}>
+              <BrandMark size={34} />
+              <span className={styles.logoText}>Chat</span>
+            </div>
+            <h1 className={styles.title}>{t(mode === 'login' ? 'authLoginTitle' : 'authRegisterTitle')}</h1>
+            <p className={styles.subtitle}>
+              {mode === 'login' ? t('authLoginHint') : t('authRegisterHint')}
+            </p>
+            <form className={styles.form} onSubmit={submit}>
+              <input
+                className={styles.input}
+                name="username"
+                autoComplete="username"
+                placeholder={t('authUsername')}
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                minLength={2}
+                maxLength={32}
+                required
+              />
+              <input
+                className={styles.input}
+                name="password"
+                type="password"
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                placeholder={t('authPassword')}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                minLength={6}
+                maxLength={128}
+                required
+              />
+              {formError ? (
+                <div className={styles.error} role="alert">
+                  {formError}
+                </div>
+              ) : status === 'error' && authError ? (
+                <div className={styles.error} role="alert">
+                  {authError}
+                </div>
+              ) : null}
+              <Button type="submit" variant="primary" size="m" className={styles.submit} disabled={busy}>
+                {t(mode === 'login' ? 'authLoginAction' : 'authRegisterAction')}
+              </Button>
+            </form>
+            <div className={styles.links}>
+              <button
+                type="button"
+                className={styles.link}
+                onClick={() => {
+                  setMode(mode === 'login' ? 'register' : 'login')
+                  setFormError(null)
+                }}
+              >
+                {t(mode === 'login' ? 'authSwitchToRegister' : 'authSwitchToLogin')}
+              </button>
+              <button type="button" className={styles.link} onClick={closeAuthOverlay}>
+                {t('authLocalMode')}
+              </button>
+            </div>
+            <p className={styles.terms}>{t('authAgreement')}</p>
           </div>
-        ) : null}
-        <Button
-          type="submit"
-          variant="primary"
-          size="m"
-          className={styles.submit}
-          disabled={busy}
-        >
-          {t(mode === 'login' ? 'authLoginAction' : 'authRegisterAction')}
-        </Button>
-        <button
-          type="button"
-          className={styles.switch}
-          onClick={() => {
-            setMode(mode === 'login' ? 'register' : 'login')
-            setFormError(null)
-          }}
-        >
-          {t(mode === 'login' ? 'authSwitchToRegister' : 'authSwitchToLogin')}
-        </button>
-      </form>
-    </div>
+        </div>
+      ) : null}
+    </>
   )
 }

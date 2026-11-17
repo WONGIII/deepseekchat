@@ -1,5 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { type Session, type SessionSummary } from './types.js'
+import { useAuth } from '../auth.js'
 
 /** IndexedDB 存储结构版本；新增或调整存储、索引时递增。 */
 const DB_VERSION = 11
@@ -32,6 +33,67 @@ interface ChatDB extends DBSchema {
 }
 
 let dbPromise: Promise<IDBPDatabase<ChatDB>> | null = null
+
+/** 未登录时所有会话都留在本机 IndexedDB；登录后切换到服务器会话。 */
+const isCloudSessionMode = () => useAuth.getState().status === 'authenticated'
+
+const sessionSummary = (session: Session): SessionSummary => ({
+  id: session.id,
+  title: session.title,
+  createdAt: session.createdAt,
+  updatedAt: session.updatedAt,
+})
+
+const sessionFileIds = (session: Session): string[] => [
+  ...new Set(
+    session.messages.flatMap((message) =>
+      message.role === 'user' ? message.files.map((file) => file.id) : []
+    )
+  ),
+]
+
+const putLocalSession = async (session: Session): Promise<void> => {
+  const tx = (await getDB()).transaction(['sessions', 'sessionSummaries'], 'readwrite')
+  await Promise.all([
+    tx.objectStore('sessions').put(session),
+    tx.objectStore('sessionSummaries').put({
+      ...sessionSummary(session),
+      fileIds: sessionFileIds(session),
+    }),
+    tx.done,
+  ])
+}
+
+const loadLocalSessionSummaries = async (): Promise<SessionSummary[]> => {
+  const tx = (await getDB()).transaction('sessionSummaries', 'readonly')
+  const rows = await tx.store.getAll()
+  await tx.done
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }))
+}
+
+const replaceLocalSessions = async (sessions: Session[]): Promise<SessionSummary[]> => {
+  const tx = (await getDB()).transaction(['sessions', 'sessionSummaries'], 'readwrite')
+  await Promise.all([
+    (async () => {
+      await tx.objectStore('sessions').clear()
+      await tx.objectStore('sessionSummaries').clear()
+      for (const session of sessions) {
+        await tx.objectStore('sessions').put(session)
+        await tx.objectStore('sessionSummaries').put({
+          ...sessionSummary(session),
+          fileIds: sessionFileIds(session),
+        })
+      }
+    })(),
+    tx.done,
+  ])
+  return sessions.map(sessionSummary)
+}
 
 const abortTransaction = (tx: { abort(): void }) => {
   try {
@@ -90,11 +152,17 @@ const sessionRequest = async (path: string, init?: RequestInit): Promise<Respons
 }
 
 export const loadSessionSummaries = async (): Promise<SessionSummary[]> => {
+  if (!isCloudSessionMode()) {
+    return loadLocalSessionSummaries()
+  }
   const response = await sessionRequest('')
   return (await response.json()) as SessionSummary[]
 }
 
 export const loadSession = async (id: string): Promise<Session | undefined> => {
+  if (!isCloudSessionMode()) {
+    return (await getDB()).get('sessions', id)
+  }
   const response = await sessionRequest(`/${encodeURIComponent(id)}`)
   return (await response.json()) as Session
 }
@@ -109,6 +177,10 @@ export const saveSession = (session: Session, files: StoredFile[] = []): Promise
     .then(async () => {
       if (files.length > 0) {
         await saveFiles(files)
+      }
+      if (!isCloudSessionMode()) {
+        await putLocalSession(session)
+        return
       }
       await sessionRequest(`/${encodeURIComponent(id)}`, {
         method: 'PUT',
@@ -127,6 +199,13 @@ export const saveSession = (session: Session, files: StoredFile[] = []): Promise
 
 /** 未打开的会话也可重命名，服务器只更新标题。 */
 export const renameSession = async (id: string, title: string): Promise<void> => {
+  if (!isCloudSessionMode()) {
+    const current = await (await getDB()).get('sessions', id)
+    if (current) {
+      await putLocalSession({ ...current, title, updatedAt: Date.now() })
+    }
+    return
+  }
   await sessionRequest(`/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify({ title }),
@@ -145,6 +224,17 @@ const deleteLocalFiles = async (ids: string[]): Promise<void> => {
 export const deleteSession = async (sessionId: string): Promise<void> => {
   await saveQueues.get(sessionId)?.catch(() => undefined)
   const session = await loadSession(sessionId).catch(() => undefined)
+  if (!isCloudSessionMode()) {
+    const tx = (await getDB()).transaction(['sessions', 'sessionSummaries'], 'readwrite')
+    await Promise.all([
+      tx.objectStore('sessions').delete(sessionId),
+      tx.objectStore('sessionSummaries').delete(sessionId),
+      tx.done,
+    ])
+    saveQueues.delete(sessionId)
+    await deleteLocalFiles(session ? sessionFileIds(session) : [])
+    return
+  }
   await sessionRequest(`/${encodeURIComponent(sessionId)}`, { method: 'DELETE' })
   saveQueues.delete(sessionId)
   const fileIds = session
@@ -163,6 +253,9 @@ export const deleteSession = async (sessionId: string): Promise<void> => {
 export const replaceAllSessions = async (sessions: Session[]): Promise<SessionSummary[]> => {
   await Promise.all([...saveQueues.values()].map((promise) => promise.catch(() => undefined)))
   saveQueues.clear()
+  if (!isCloudSessionMode()) {
+    return replaceLocalSessions(sessions)
+  }
   const response = await sessionRequest('', {
     method: 'PUT',
     body: JSON.stringify({ sessions }),
@@ -237,6 +330,27 @@ export const commitStaging = async (): Promise<SessionSummary[]> => {
     staged.push(cursor.value)
   }
   await readTx.done
+
+  if (!isCloudSessionMode()) {
+    const summaries = await replaceLocalSessions(staged)
+    const tx = (await getDB()).transaction(
+      ['files', 'filesStaging', 'sessionsStaging'],
+      'readwrite'
+    )
+    await Promise.all([
+      (async () => {
+        const files = tx.objectStore('files')
+        await files.clear()
+        for await (const cursor of tx.objectStore('filesStaging')) {
+          await files.put(cursor.value)
+        }
+        await tx.objectStore('sessionsStaging').clear()
+        await tx.objectStore('filesStaging').clear()
+      })(),
+      tx.done,
+    ])
+    return summaries
+  }
 
   const summaries = await replaceAllSessions(staged)
 

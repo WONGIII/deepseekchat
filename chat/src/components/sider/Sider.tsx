@@ -2,6 +2,9 @@ import clsx from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
 import { IconPanelLeftOutline16, IconSettingsOutline16, NewChatIcon } from '../base/icons.js'
+import { BrandMark } from '../base/BrandMark.js'
+import { useAuth } from '../../services/auth.js'
+import { openAuthOverlay } from '../auth/authUiState.js'
 import { setSiderCollapsed } from '../../services/settings.js'
 import { groupSessions } from '../../services/chat/sessionGroups.js'
 import { newChat, removeSession, useChatStore } from '../../services/chat/store.js'
@@ -29,6 +32,8 @@ export const Sider = ({
   const [now, setNow] = useState(Date.now)
   const groups = useMemo(() => groupSessions(sessions, now, t), [sessions, now, t])
   const [deleting, setDeleting] = useState<SessionSummary | null>(null)
+  const authStatus = useAuth((state) => state.status)
+  const username = useAuth((state) => state.user?.username)
   const [deletePending, setDeletePending] = useState(false)
 
   useEffect(() => {
@@ -58,7 +63,10 @@ export const Sider = ({
   return (
     <div className={clsx(styles.sider, mobile && styles.mobile, collapsed && styles.siderCollapsed)}>
       <div className={styles.top}>
-        <div className={styles.appName}>{t('appName')}</div>
+        <div className={styles.brand}>
+          <BrandMark size={22} />
+          <span className={styles.appName}>{t('appName')}</span>
+        </div>
         <IconButton
           size="m"
           icon={<IconPanelLeftOutline16 />}
@@ -98,6 +106,18 @@ export const Sider = ({
         </div>
       </div>
       <div className={styles.bottom}>
+        {authStatus === 'authenticated' ? (
+          <div className={styles.account}>
+            <span className={styles.avatar}>{username?.slice(0, 1).toUpperCase() ?? 'C'}</span>
+            <span className={styles.accountText}>@{username}</span>
+          </div>
+        ) : (
+          <button type="button" className={styles.account} onClick={openAuthOverlay}>
+            <span className={styles.avatar}>C</span>
+            <span className={styles.accountText}>{t('authLocalMode')}</span>
+            <span className={styles.accountAction}>{t('authLoginAction')}</span>
+          </button>
+        )}
         <button type="button" className={styles.settings} onClick={() => openSettings('general')}>
           <span className={styles.settingsIcon}>
             <IconSettingsOutline16 />

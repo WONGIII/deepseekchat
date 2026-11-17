@@ -1,7 +1,7 @@
 {
-  "name": "DeepSeek Chat",
-  "short_name": "DeepSeek",
-  "description": "Private DeepSeek chat with local voice services",
+  "name": "Chat",
+  "short_name": "Chat",
+  "description": "Local-first Chat with self-hosted voice services",
   "lang": "zh-CN",
   "start_url": "/",
   "scope": "/",
