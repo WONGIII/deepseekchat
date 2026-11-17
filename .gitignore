@@ -41,3 +41,6 @@ gpt-sovits/outputs/
 !.env.example
 tmp/
 .DS_Store
+gpt-sovits/repo/GPT_SoVITS/text/engdict_cache.pickle
+gpt-sovits/repo/GPT_SoVITS/text/namedict_cache.pickle
+gpt-sovits/repo/GPT_SoVITS/text/g2pw/polyphonic.pickle
