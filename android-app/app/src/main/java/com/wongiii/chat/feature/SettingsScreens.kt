@@ -2,6 +2,7 @@ package com.wongiii.chat.feature
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,6 +37,7 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.Translate
+import androidx.compose.material.icons.outlined.Vibration
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Download
@@ -43,22 +45,31 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -75,6 +86,7 @@ import com.wongiii.chat.data.model.BackgroundStyle
 import com.wongiii.chat.data.model.Brand
 import com.wongiii.chat.data.model.BubbleStyle
 import com.wongiii.chat.data.model.FontSize
+import com.wongiii.chat.data.model.HapticMode
 import com.wongiii.chat.data.model.NetworkSettings
 import com.wongiii.chat.data.model.ThemeMode
 import com.wongiii.chat.data.model.TtsEmotion
@@ -89,9 +101,14 @@ import com.wongiii.chat.design.SettingsCard
 import com.wongiii.chat.design.SettingsRow
 import com.wongiii.chat.design.chatColors
 import com.wongiii.chat.design.chatTypography
+import com.wongiii.chat.domain.haptics.HapticLevels
+import com.wongiii.chat.domain.haptics.StreamingHaptics
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlin.math.PI
 
 enum class SettingsPage {
     ROOT,
@@ -101,6 +118,7 @@ enum class SettingsPage {
     APPEARANCE,
     FONT_SIZE,
     PERSONALIZATION,
+    HAPTIC,
     LOCATION,
     SERVICES,
     MODEL,
@@ -206,6 +224,18 @@ fun SettingsRoot(
                     value = if (state.settings.autoCollapseThinking) "已开启" else "已关闭",
                     labelModifier = rowModifier("auto_collapse"),
                     onClick = { vm.setAutoCollapseThinking(!state.settings.autoCollapseThinking) },
+                    showDivider = true,
+                )
+                SettingsRow(
+                    icon = Icons.Outlined.Vibration,
+                    label = "触感反馈",
+                    value = if (state.settings.hapticEnabled) {
+                        "${state.settings.hapticMode.label} · ${com.wongiii.chat.domain.haptics.HapticLevels.label(state.settings.hapticLevel)}"
+                    } else {
+                        "已关闭"
+                    },
+                    labelModifier = rowModifier("haptic"),
+                    onClick = { onOpen(SettingsPage.HAPTIC) },
                 )
             }
             SectionLabel("服务")
@@ -376,6 +406,7 @@ fun SettingsDetail(
                 SettingsPage.APPEARANCE -> AppearancePage(state, vm)
                 SettingsPage.FONT_SIZE -> FontSizePage(state, vm)
                 SettingsPage.PERSONALIZATION -> PersonalizationPage(state, vm, onPickBackground)
+                SettingsPage.HAPTIC -> HapticPage(state, vm)
                 SettingsPage.LOCATION -> LocationPage(state, vm)
                 SettingsPage.SERVICES -> ServicesPage(state, vm, onOpen)
                 SettingsPage.MODEL -> ModelPage(state, vm)
@@ -419,6 +450,7 @@ private fun settingsTitle(page: SettingsPage): String = when (page) {
     SettingsPage.APPEARANCE -> "外观"
     SettingsPage.FONT_SIZE -> "字体大小"
     SettingsPage.PERSONALIZATION -> "个性化"
+    SettingsPage.HAPTIC -> "触感反馈"
     SettingsPage.LOCATION -> "位置信息"
     SettingsPage.SERVICES -> "接口与模型"
     SettingsPage.MODEL -> "模型"
@@ -968,6 +1000,299 @@ private fun TtsPage(state: UiState, vm: ChatViewModel) {
         style = chatTypography().caption,
         color = chatColors().textTertiary,
     )
+}
+
+@Composable
+private fun HapticPage(state: UiState, vm: ChatViewModel) {
+    val colors = chatColors()
+    val context = LocalContext.current
+    val haptics = remember(context) { StreamingHaptics(context) }
+    val scope = rememberCoroutineScope()
+    var previewing by remember { mutableStateOf(false) }
+
+    DisposableEffect(haptics) {
+        onDispose { haptics.stop() }
+    }
+
+    SectionLabel("流式输出")
+    SettingsCard {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { vm.setHapticEnabled(!state.settings.hapticEnabled) }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "流式输出震动",
+                    style = chatTypography().body,
+                    color = colors.textPrimary,
+                )
+                Text(
+                    if (haptics.available) {
+                        "思考与回答逐字出现时，跟手给出连续触感"
+                    } else {
+                        "当前设备没有可用的震动马达"
+                    },
+                    modifier = Modifier.padding(top = 3.dp),
+                    style = chatTypography().caption,
+                    color = colors.textTertiary,
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Switch(
+                checked = state.settings.hapticEnabled,
+                onCheckedChange = { vm.setHapticEnabled(it) },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = colors.accent,
+                    uncheckedThumbColor = colors.textTertiary,
+                    uncheckedTrackColor = colors.border,
+                ),
+            )
+        }
+    }
+    Text(
+        "震动强度、节奏和纹理都会随文字到达的密度变化；输出暂停后会自然收敛，不会一直持续震动。",
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+        style = chatTypography().caption,
+        color = colors.textTertiary,
+    )
+
+    SectionLabel("震动模式")
+    SettingsCard {
+        HapticMode.entries.forEachIndexed { index, mode ->
+            HapticModeRow(
+                mode = mode,
+                selected = state.settings.hapticMode == mode,
+                onClick = { vm.setHapticMode(mode) },
+            )
+            if (index != HapticMode.entries.lastIndex) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 72.dp),
+                    thickness = 0.5.dp,
+                    color = colors.divider,
+                )
+            }
+        }
+    }
+
+    SectionLabel("震动强度")
+    SettingsCard {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                (HapticLevels.MIN..HapticLevels.MAX).forEach { level ->
+                    val selected = state.settings.hapticLevel == level
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(42.dp)
+                            .clip(RoundedCornerShape(11.dp))
+                            .clickable { vm.setHapticLevel(level) },
+                        color = if (selected) colors.accentSoft else colors.settingsPage,
+                        shape = RoundedCornerShape(11.dp),
+                        border = androidx.compose.foundation.BorderStroke(
+                            if (selected) 1.dp else 0.5.dp,
+                            if (selected) colors.accent else colors.border,
+                        ),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                "$level",
+                                style = chatTypography().label.copy(
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                ),
+                                color = if (selected) colors.accent else colors.textSecondary,
+                            )
+                        }
+                    }
+                }
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(top = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "第 ${state.settings.hapticLevel} 挡",
+                    style = chatTypography().caption,
+                    color = colors.textTertiary,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    HapticLevels.label(state.settings.hapticLevel),
+                    style = chatTypography().caption,
+                    color = colors.textSecondary,
+                )
+            }
+        }
+    }
+    Text(
+        "1 挡最轻，5 挡最明显。水流模式在同等挡位下会比涟漪、心跳更柔和。",
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+        style = chatTypography().caption,
+        color = colors.textTertiary,
+    )
+
+    SectionLabel("试听")
+    Column(Modifier.padding(horizontal = 16.dp)) {
+        SecondaryButton(
+            text = if (previewing) "正在试听…" else "试听当前触感（约 2 秒）",
+            onClick = {
+                if (!previewing && haptics.available) {
+                    previewing = true
+                    haptics.preview(scope, state.settings.hapticMode, state.settings.hapticLevel)
+                    scope.launch {
+                        delay(2900)
+                        previewing = false
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = haptics.available && !previewing,
+        )
+        Text(
+            if (haptics.fineControl) {
+                "你的设备支持振幅控制，挡位会调节真实震动力度。不同机型的马达特性会让触感略有差异。"
+            } else {
+                "你的设备不支持振幅控制，触感强弱会通过脉冲长短和疏密来表现。"
+            },
+            modifier = Modifier.padding(top = 10.dp),
+            style = chatTypography().caption,
+            color = colors.textTertiary,
+        )
+    }
+}
+
+@Composable
+private fun HapticModeRow(mode: HapticMode, selected: Boolean, onClick: () -> Unit) {
+    val colors = chatColors()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        HapticGlyph(mode, if (selected) colors.accent else colors.textTertiary)
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                mode.label,
+                style = chatTypography().body,
+                color = colors.textPrimary,
+            )
+            Text(
+                mode.description,
+                modifier = Modifier.padding(top = 2.dp),
+                style = chatTypography().caption,
+                color = colors.textTertiary,
+            )
+        }
+        if (selected) {
+            Icon(
+                Icons.Rounded.Check,
+                contentDescription = null,
+                tint = colors.accent,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun HapticGlyph(mode: HapticMode, color: Color) {
+    Canvas(Modifier.size(width = 42.dp, height = 24.dp)) {
+        val w = size.width
+        val h = size.height
+        val cy = h / 2
+        val stroke = 1.6.dp.toPx()
+        when (mode) {
+            HapticMode.FLOW -> {
+                val path = Path()
+                var x = 0f
+                while (x <= w) {
+                    val envelope = 0.55f + 0.45f * kotlin.math.sin(x / w * PI.toFloat() * 2f)
+                    val y = cy + kotlin.math.sin(x / w * PI.toFloat() * 7f) * h * 0.27f * envelope
+                    if (x == 0f) path.moveTo(x, y) else path.lineTo(x, y)
+                    x += 1.5f
+                }
+                drawPath(path, color, style = Stroke(stroke))
+            }
+            HapticMode.RIPPLE -> {
+                val path = Path()
+                path.moveTo(0f, cy + h * 0.18f)
+                path.quadraticBezierTo(w * 0.18f, cy - h * 0.36f, w * 0.36f, cy + h * 0.18f)
+                path.quadraticBezierTo(w * 0.54f, cy - h * 0.30f, w * 0.72f, cy + h * 0.18f)
+                path.quadraticBezierTo(w * 0.86f, cy - h * 0.22f, w, cy + h * 0.18f)
+                drawPath(path, color, style = Stroke(stroke))
+            }
+            HapticMode.BREATH -> {
+                val path = Path()
+                path.moveTo(0f, cy + h * 0.12f)
+                path.cubicTo(
+                    w * 0.24f, cy + h * 0.12f,
+                    w * 0.27f, cy - h * 0.38f,
+                    w * 0.5f, cy - h * 0.38f,
+                )
+                path.cubicTo(
+                    w * 0.73f, cy - h * 0.38f,
+                    w * 0.76f, cy + h * 0.12f,
+                    w, cy + h * 0.12f,
+                )
+                drawPath(path, color, style = Stroke(stroke))
+            }
+            HapticMode.HEARTBEAT -> {
+                val path = Path()
+                path.moveTo(0f, cy)
+                path.lineTo(w * 0.22f, cy)
+                path.lineTo(w * 0.30f, cy - h * 0.40f)
+                path.lineTo(w * 0.38f, cy + h * 0.30f)
+                path.lineTo(w * 0.46f, cy)
+                path.lineTo(w * 0.58f, cy)
+                path.lineTo(w * 0.64f, cy - h * 0.24f)
+                path.lineTo(w * 0.70f, cy + h * 0.16f)
+                path.lineTo(w * 0.76f, cy)
+                path.lineTo(w, cy)
+                drawPath(path, color, style = Stroke(stroke))
+            }
+            HapticMode.TYPEWRITER -> {
+                for (i in 0..5) {
+                    val x = w * (0.1f + 0.16f * i)
+                    val height = if (i % 2 == 0) h * 0.52f else h * 0.30f
+                    drawLine(
+                        color,
+                        Offset(x, cy - height / 2),
+                        Offset(x, cy + height / 2),
+                        strokeWidth = stroke,
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                    )
+                }
+            }
+            HapticMode.RAIN -> {
+                val drops = listOf(
+                    0.12f to 0.34f,
+                    0.32f to 0.70f,
+                    0.50f to 0.44f,
+                    0.70f to 0.76f,
+                    0.88f to 0.38f,
+                )
+                drops.forEach { (fx, fy) ->
+                    drawCircle(color, radius = 1.5.dp.toPx(), center = Offset(w * fx, h * fy))
+                    drawLine(
+                        color.copy(alpha = 0.55f),
+                        Offset(w * fx, h * fy - 5.dp.toPx()),
+                        Offset(w * fx, h * fy - 2.dp.toPx()),
+                        strokeWidth = stroke,
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable

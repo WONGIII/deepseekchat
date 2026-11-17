@@ -347,6 +347,9 @@ fun ChatScreen(
                         AssistantMessageRow(
                             message = message,
                             streaming = isStreamingMessage,
+                            hapticEnabled = settings.hapticEnabled,
+                            hapticMode = settings.hapticMode,
+                            hapticLevel = settings.hapticLevel,
                             reading = readingMessageId == message.id,
                             readingStatus = readingStatus,
                             open = thinkingOpen[message.id] ?: defaultOpen,

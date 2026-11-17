@@ -18,6 +18,7 @@ import com.wongiii.chat.data.model.ChatMessage
 import com.wongiii.chat.data.model.ChatSession
 import com.wongiii.chat.data.model.FileAttachment
 import com.wongiii.chat.data.model.FontSize
+import com.wongiii.chat.data.model.HapticMode
 import com.wongiii.chat.data.model.MessageError
 import com.wongiii.chat.data.model.NetworkSettings
 import com.wongiii.chat.data.model.ReplyBlock
@@ -43,6 +44,7 @@ import com.wongiii.chat.data.repo.SessionRepository
 import com.wongiii.chat.domain.archive.HistoryArchive
 import com.wongiii.chat.domain.chat.ChatEngine
 import com.wongiii.chat.domain.files.FileExtractor
+import com.wongiii.chat.domain.haptics.StreamingHaptics
 import com.wongiii.chat.domain.files.ImageCompressor
 import com.wongiii.chat.domain.files.fileExtension
 import com.wongiii.chat.domain.files.inferMime
@@ -109,6 +111,7 @@ data class UiState(
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = AppPrefs(application)
+    private val haptics = StreamingHaptics(application)
     private val factory = HttpClientFactory(prefs)
     private val fileStore = FileStore(application)
     private val localStore = LocalSessionStore(application.filesDir)
@@ -278,6 +281,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (settings.network.llmApiKey.isNullOrBlank()) {
             toast("请先在设置中填写 API Key")
             return
+        }
+        if (settings.hapticEnabled) {
+            haptics.confirm(settings.hapticLevel)
         }
         val now = System.currentTimeMillis()
         val isNewSession = _state.value.activeSession == null
@@ -622,6 +628,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun setLocation(value: String?) = updateSettings { it.copy(location = value?.trim()?.takeIf { it.isNotEmpty() }) }
     fun setReadAloudMuted(value: Boolean) = updateSettings { it.copy(readAloudMuted = value) }
     fun setAutoCollapseThinking(value: Boolean) = updateSettings { it.copy(autoCollapseThinking = value) }
+    fun setHapticEnabled(value: Boolean) = updateSettings { it.copy(hapticEnabled = value) }
+    fun setHapticMode(value: HapticMode) = updateSettings { it.copy(hapticMode = value) }
+    fun setHapticLevel(value: Int) = updateSettings { it.copy(hapticLevel = value.coerceIn(1, 5)) }
 
     fun setThinkingOpen(messageId: String, open: Boolean) {
         _state.value = _state.value.copy(

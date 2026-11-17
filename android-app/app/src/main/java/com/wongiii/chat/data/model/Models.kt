@@ -44,6 +44,16 @@ enum class FontSize(val scale: Float) {
 }
 
 @Serializable
+enum class HapticMode(val label: String, val description: String) {
+    FLOW("水流", "连续细腻，像细流穿过指尖"),
+    RIPPLE("涟漪", "轻柔地一圈圈荡开"),
+    BREATH("呼吸", "缓慢起伏，安静绵长"),
+    HEARTBEAT("心跳", "两下轻拍，像心跳一样"),
+    TYPEWRITER("打字机", "逐字轻顿，节奏清晰"),
+    RAIN("雨滴", "细密雨点，随机落下")
+}
+
+@Serializable
 enum class TtsVoice(val api: String) {
     STELLA("stella"), TIDE("tide")
 }

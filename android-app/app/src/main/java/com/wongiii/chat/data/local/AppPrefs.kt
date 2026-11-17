@@ -9,6 +9,7 @@ import com.wongiii.chat.data.model.AppJson
 import com.wongiii.chat.data.model.BackgroundStyle
 import com.wongiii.chat.data.model.BubbleStyle
 import com.wongiii.chat.data.model.FontSize
+import com.wongiii.chat.data.model.HapticMode
 import com.wongiii.chat.data.model.NetworkSettings
 import com.wongiii.chat.data.model.ThemeMode
 import com.wongiii.chat.data.model.TtsEmotion
@@ -39,6 +40,9 @@ data class AppSettings(
     val models: List<String> = listOf("deepseek-flash", "deepseek-v4-pro"),
     val readAloudMuted: Boolean = true,
     val autoCollapseThinking: Boolean = true,
+    val hapticEnabled: Boolean = true,
+    val hapticMode: HapticMode = HapticMode.FLOW,
+    val hapticLevel: Int = 2,
     val asrLanguage: String = "auto",
     val location: String? = null,
     val network: NetworkSettings = NetworkSettings(),
@@ -136,6 +140,9 @@ class AppPrefs(context: Context) {
             models = finalModels,
             readAloudMuted = prefs.getBoolean("read_aloud_muted", true),
             autoCollapseThinking = prefs.getBoolean("auto_collapse_thinking", true),
+            hapticEnabled = prefs.getBoolean("haptic_enabled", true),
+            hapticMode = enumOr(prefs.getString("haptic_mode", null), HapticMode.FLOW),
+            hapticLevel = prefs.getInt("haptic_level", 2).coerceIn(1, 5),
             asrLanguage = prefs.getString("asr_language", null) ?: "auto",
             location = prefs.getString("location", null),
             network = network,
@@ -163,6 +170,9 @@ class AppPrefs(context: Context) {
             ))
             .putBoolean("read_aloud_muted", settings.readAloudMuted)
             .putBoolean("auto_collapse_thinking", settings.autoCollapseThinking)
+            .putBoolean("haptic_enabled", settings.hapticEnabled)
+            .putString("haptic_mode", settings.hapticMode.name)
+            .putInt("haptic_level", settings.hapticLevel.coerceIn(1, 5))
             .putString("asr_language", settings.asrLanguage)
             .putString("location", settings.location)
             .apply()

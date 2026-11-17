@@ -122,6 +122,7 @@ private fun settingsKey(page: SettingsPage): String = when (page) {
     SettingsPage.APPEARANCE -> "appearance"
     SettingsPage.FONT_SIZE -> "font"
     SettingsPage.PERSONALIZATION -> "personalization"
+    SettingsPage.HAPTIC -> "haptic"
     SettingsPage.LOCATION -> "location"
     SettingsPage.SERVICES -> "services"
     SettingsPage.NETWORK -> "network"
@@ -430,7 +431,7 @@ fun ChatRoot(vm: ChatViewModel) {
                                     val rowModifiers = with(this@SharedTransitionLayout) {
                                         listOf(
                                             "account", "data", "language", "appearance", "font",
-                                            "personalization", "location", "auto_collapse", "services", "network", "asr", "tts", "update", "terms", "help", "licenses",
+                                            "personalization", "haptic", "location", "auto_collapse", "services", "network", "asr", "tts", "update", "terms", "help", "licenses",
                                         ).associateWith { key ->
                                             Modifier.sharedBounds(
                                                 rememberSharedContentState("settings-row:$key"),

@@ -73,6 +73,7 @@ import kotlinx.coroutines.delay
 import coil.compose.AsyncImage
 import kotlin.math.abs
 import com.wongiii.chat.data.model.ChatMessage
+import com.wongiii.chat.data.model.HapticMode
 import com.wongiii.chat.design.EmptyDots
 import com.wongiii.chat.design.ExtraIcons
 import com.wongiii.chat.design.WebIcons
@@ -83,6 +84,9 @@ import com.wongiii.chat.design.chatTypography
 fun AssistantMessageRow(
     message: ChatMessage,
     streaming: Boolean,
+    hapticEnabled: Boolean = false,
+    hapticMode: HapticMode = HapticMode.FLOW,
+    hapticLevel: Int = 2,
     reading: Boolean = false,
     readingStatus: String? = null,
     open: Boolean = true,
@@ -113,6 +117,15 @@ fun AssistantMessageRow(
     val searchSteps = remember(message.blocks) { message.searchSteps() }
     val sources = remember(message.blocks) { message.searchSources() }
     val answer = (textBlocks + templateBlocks).joinToString("\n\n") { it.text.orEmpty() }
+    val streamedChars = thinkingBlocks.sumOf { it.thinking.orEmpty().length } + answer.length
+    StreamingHapticEffect(
+        active = streaming,
+        enabled = hapticEnabled,
+        mode = hapticMode,
+        level = hapticLevel,
+        chars = streamedChars,
+        key = message.id,
+    )
     val showTitle = thinkingBlocks.isNotEmpty() || (message.thinking == true && streaming)
     val elapsed = thinkingBlocks.mapNotNull { it.elapsedSeconds }.sum()
     val title = when {
