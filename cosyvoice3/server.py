@@ -64,7 +64,7 @@ EOS_PREFIX = "You are a helpful assistant.<|endofprompt|>"
 # 自定义参考音频及对应文字稿（Whisper small 识别，保留原有语气词）；没有自定义音频时使用官方文字稿
 CUSTOM_STELLA_PROMPT_TEXT = (
     EOS_PREFIX
-    + "香港今日11月17日大致多雲，日間部分時間有陽光，天氣偏暖。"
+    + "香港今日11月17日大致多雲，日間部分時間有陽光。"
 )
 STELLA_PROMPT_TEXT = (
     CUSTOM_STELLA_PROMPT_TEXT
