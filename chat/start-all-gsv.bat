@@ -7,12 +7,19 @@ set "COSY_DIR=%~dp0..\cosyvoice3"
 set "GSV_DIR=%~dp0..\gpt-sovits"
 for %%I in ("%COSY_DIR%") do set "COSY_DIR=%%~fI"
 for %%I in ("%GSV_DIR%") do set "GSV_DIR=%%~fI"
+set "PYTHON=%GSV_DIR%\.venv\Scripts\python.exe"
 set "BACKEND_DIR=%CHAT_DIR%server"
 set "LOGS=%CHAT_DIR%logs"
 if not exist "%LOGS%" mkdir "%LOGS%"
 
 if not exist "%GSV_DIR%\gsv_server.py" (
   echo GPT-SoVITS not found at: %GSV_DIR%
+  pause
+  exit /b 1
+)
+if not exist "%PYTHON%" (
+  echo GPT-SoVITS Python environment not found at: %PYTHON%
+  echo Create the GPT-SoVITS venv first, then re-run this script.
   pause
   exit /b 1
 )
@@ -38,8 +45,8 @@ start /b /d "%BACKEND_DIR%" cmd /c "node index.mjs > %LOGS%\backend.log 2>&1"
 echo [4/8] Starting GPT-SoVITS V5 Turbo on 8002...
 start /b /d "%GSV_DIR%" cmd /c ".venv\Scripts\python.exe gsv_server.py --host 0.0.0.0 --port 8002 --device cuda > %LOGS%\gsv.log 2>&1"
 
-echo [5/8] Starting CosyVoice ASR adapter on 8000 (TTS: GPT-SoVITS, ASR: Whisper)...
-start /b /d "%COSY_DIR%" cmd /c ".venv\Scripts\python.exe server.py --host 0.0.0.0 --port 8000 --tts-engine gsv --gsv-url http://127.0.0.1:8002 > %LOGS%\tts.log 2>&1"
+echo [5/8] Starting ASR adapter on 8000 (TTS: GPT-SoVITS, ASR: Whisper)...
+start /b /d "%COSY_DIR%" cmd /c ""%PYTHON%" server.py --host 0.0.0.0 --port 8000 --tts-engine gsv --gsv-url http://127.0.0.1:8002 > "%LOGS%\tts.log" 2>&1"
 
 echo [6/8] Waiting for backend...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$deadline=(Get-Date).AddSeconds(90); while((Get-Date) -lt $deadline){ try { $r=Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:8098/api/health' -TimeoutSec 2; if($r.StatusCode -eq 200){exit 0} } catch {} ; Start-Sleep -Milliseconds 500 }; exit 1"

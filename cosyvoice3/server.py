@@ -6,33 +6,8 @@ import sys
 import tempfile
 import threading
 
-import num2words
-import onnxruntime
 import aiohttp
 import requests
-import torch
-import torchaudio
-import whisper
-import cn2an
-from sudachipy import dictionary as sudachi_dictionary
-from sudachipy import tokenizer as sudachi_tokenizer
-
-# CosyVoice 在 CUDA 可用时要求 CUDAExecutionProvider；CPU 版 onnxruntime 没有该 provider，
-# 这里过滤成实际可用的 provider，避免模型加载失败。
-_orig_inference_session = onnxruntime.InferenceSession
-
-
-def _safe_inference_session(*args, **kwargs):
-    providers = kwargs.get("providers")
-    if providers:
-        available = set(onnxruntime.get_available_providers())
-        kwargs["providers"] = [p for p in providers if p in available] or [
-            "CPUExecutionProvider"
-        ]
-    return _orig_inference_session(*args, **kwargs)
-
-
-onnxruntime.InferenceSession = _safe_inference_session
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.join(ROOT, "repo")
@@ -44,7 +19,28 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 import uvicorn
 
-from cosyvoice.cli.cosyvoice import AutoModel
+
+def load_cosyvoice_class():
+    """只在 cosyvoice 引擎下加载 CosyVoice 及其依赖，GSV/M5 环境无需安装这些包。"""
+    import onnxruntime
+
+    # CosyVoice 在 CUDA 可用时要求 CUDAExecutionProvider；CPU 版 onnxruntime 没有该 provider，
+    # 这里过滤成实际可用的 provider，避免模型加载失败。
+    original_session = onnxruntime.InferenceSession
+
+    def safe_inference_session(*args, **kwargs):
+        providers = kwargs.get("providers")
+        if providers:
+            available = set(onnxruntime.get_available_providers())
+            kwargs["providers"] = [p for p in providers if p in available] or [
+                "CPUExecutionProvider"
+            ]
+        return original_session(*args, **kwargs)
+
+    onnxruntime.InferenceSession = safe_inference_session
+    from cosyvoice.cli.cosyvoice import AutoModel
+
+    return AutoModel
 
 TARGET_SAMPLE_RATE = 24000
 CUSTOM_STELLA_WAV = os.path.join(ROOT, "voices", "stella.wav")
@@ -158,6 +154,8 @@ def clean_markdown(text):
 
 def _chinese_number(value):
     try:
+        import cn2an
+
         return cn2an.an2cn(value)
     except Exception:
         return value
@@ -264,6 +262,8 @@ def _hiragana_to_katakana(text):
 def _read_japanese_number(token):
     """数字转日语读音（片假名）；年份等按自然数读，小数逐位读。"""
     try:
+        import num2words
+
         if "." in token:
             whole, frac = token.split(".", 1)
             head = _read_japanese_number(whole) if whole else "ゼロ"
@@ -306,6 +306,9 @@ def _normalize_japanese_numbers(text):
 def japanese_to_katakana(text):
     """CosyVoice3 官方要求日语先转写成片假名；汉字用 Sudachi 读音，英文/符号原样保留。
     词与词之间留空格，官方示例即为此格式，能明显改善日语韵律和清晰度。"""
+    from sudachipy import dictionary as sudachi_dictionary
+    from sudachipy import tokenizer as sudachi_tokenizer
+
     global _japanese_tokenizer
     text = _normalize_japanese_numbers(text)
     if _japanese_tokenizer is None:
@@ -383,6 +386,9 @@ def silence_pcm(ms):
 
 
 def to_pcm16(speech):
+    import torch
+    import torchaudio
+
     speech = speech.detach().float().cpu()
     if speech.dim() == 2:
         speech = speech[0]
@@ -753,7 +759,7 @@ def main():
             args.fp16,
             STREAMING,
         )
-        cosyvoice = AutoModel(model_dir=MODEL_DIR, fp16=bool(args.fp16))
+        cosyvoice = load_cosyvoice_class()(model_dir=MODEL_DIR, fp16=bool(args.fp16))
         sample_rate = cosyvoice.sample_rate
         log.info("CosyVoice model loaded, sample_rate=%s", sample_rate)
         log.info("stella prompt wav: %s", STELLA_PROMPT_WAV)
@@ -783,17 +789,23 @@ def main():
     else:
         log.info("loading Whisper ASR model %s", args.asr_model)
         try:
-            asr_model = whisper.load_model(args.asr_model)
-            ASR_MODEL_NAME = args.asr_model
+            import whisper
         except Exception:
-            log.exception("Whisper GPU load failed, retry on CPU")
+            log.exception("Whisper ASR import failed; /asr will return 503")
+            asr_model = None
+        else:
             try:
-                asr_model = whisper.load_model(args.asr_model, device="cpu")
-                ASR_MODEL_NAME = f"{args.asr_model} (cpu)"
+                asr_model = whisper.load_model(args.asr_model)
+                ASR_MODEL_NAME = args.asr_model
             except Exception:
-                log.exception("Whisper ASR load failed; /asr will return 503")
-                asr_model = None
-                ASR_MODEL_NAME = ""
+                log.exception("Whisper GPU load failed, retry on CPU")
+                try:
+                    asr_model = whisper.load_model(args.asr_model, device="cpu")
+                    ASR_MODEL_NAME = f"{args.asr_model} (cpu)"
+                except Exception:
+                    log.exception("Whisper ASR load failed; /asr will return 503")
+                    asr_model = None
+                    ASR_MODEL_NAME = ""
         log.info("ASR ready: %s", ASR_MODEL_NAME or "disabled")
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 

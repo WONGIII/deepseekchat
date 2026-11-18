@@ -32,3 +32,10 @@ lightning-utilities
 torchmetrics==1.5.0
 matplotlib==3.7.5
 setuptools<81
+
+# Extra packages for the 8000 ASR adapter (cosyvoice3/server.py --tts-engine gsv):
+# this venv also runs Whisper and the async PCM proxy, so CosyVoice's own env is no longer needed.
+aiohttp
+python-multipart
+openai-whisper
+tiktoken

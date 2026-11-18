@@ -5,14 +5,23 @@ title DeepSeek Chat + M5-TTS + Whisper ASR
 set "CHAT_DIR=%~dp0"
 set "COSY_DIR=%~dp0..\cosyvoice3"
 set "M5_DIR=%~dp0..\m5-tts"
+set "GSV_DIR=%~dp0..\gpt-sovits"
 for %%I in ("%COSY_DIR%") do set "COSY_DIR=%%~fI"
 for %%I in ("%M5_DIR%") do set "M5_DIR=%%~fI"
+for %%I in ("%GSV_DIR%") do set "GSV_DIR=%%~fI"
+set "PYTHON=%GSV_DIR%\.venv\Scripts\python.exe"
 set "BACKEND_DIR=%CHAT_DIR%server"
 set "LOGS=%CHAT_DIR%logs"
 if not exist "%LOGS%" mkdir "%LOGS%"
 
 if not exist "%M5_DIR%\m5_server.py" (
   echo M5-TTS not found at: %M5_DIR%
+  pause
+  exit /b 1
+)
+if not exist "%PYTHON%" (
+  echo GPT-SoVITS Python environment not found at: %PYTHON%
+  echo The 8000 ASR adapter reuses the GPT-SoVITS venv; create it first.
   pause
   exit /b 1
 )
@@ -36,8 +45,8 @@ start /b /d "%BACKEND_DIR%" cmd /c "node index.mjs > %LOGS%\backend.log 2>&1"
 echo [4/8] Starting M5-TTS ONNX server on 8001...
 start /b /d "%M5_DIR%" cmd /c ".venv\Scripts\python.exe m5_server.py --host 0.0.0.0 --port 8001 --device cuda --threads 4 > %LOGS%\m5.log 2>&1"
 
-echo [5/8] Starting CosyVoice ASR adapter on 8000 (TTS: M5, ASR: Whisper)...
-start /b /d "%COSY_DIR%" cmd /c ".venv\Scripts\python.exe server.py --host 0.0.0.0 --port 8000 --tts-engine m5 --m5-url http://127.0.0.1:8001 > %LOGS%\tts.log 2>&1"
+echo [5/8] Starting ASR adapter on 8000 (TTS: M5, ASR: Whisper)...
+start /b /d "%COSY_DIR%" cmd /c ""%PYTHON%" server.py --host 0.0.0.0 --port 8000 --tts-engine m5 --m5-url http://127.0.0.1:8001 > "%LOGS%\tts.log" 2>&1"
 
 echo [6/8] Waiting for backend...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$deadline=(Get-Date).AddSeconds(90); while((Get-Date) -lt $deadline){ try { $r=Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:8098/api/health' -TimeoutSec 2; if($r.StatusCode -eq 200){exit 0} } catch {} ; Start-Sleep -Milliseconds 500 }; exit 1"
